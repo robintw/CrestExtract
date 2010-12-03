@@ -50,7 +50,7 @@ PRO EXTRACT_CRESTS_GUI
   ; Use the ENVI dialog box to select a file
   ENVI_SELECT, fid=fid,dims=dims,pos=pos, /BAND_ONLY
 
-  EXTRACT_CRESTS, fid, dims, pos
+  EXTRACT_CRESTS, fid, dims, pos, "D:\TestCrests.bsq"
 END
 
 FUNCTION EXTRACT_FROM_ASPECT, aspect_fid
@@ -158,8 +158,8 @@ PRO EXTRACT_CRESTS, fid, dims, pos, output_file
   ENVI_FILE_MNG, id=aspect_fid, /REMOVE
   ENVI_FILE_MNG, id=LP1_fid, /REMOVE
   ENVI_FILE_MNG, id=LP2_fid, /REMOVE
-  ENVI_FILE_MNG, id=output_fid, /REMOVE 
-  ENVI_FILE_MNG, id=fid, /REMOVE
+  ;ENVI_FILE_MNG, id=output_fid, /REMOVE 
+  ;ENVI_FILE_MNG, id=fid, /REMOVE
   
   filled_output = 0
   output = 0
