@@ -2,7 +2,7 @@ FUNCTION DO_CONVOL, x, y, array
   kernel = intarr(3, 3)
   kernel[x,y] = 1
   
-  return, CONVOL(float(array), kernel, /CENTER, /EDGE_TRUNCATE)
+  return, CONVOL(float(array), kernel, /CENTER, /EDGE_ZERO)
 END
 
 FUNCTION REMOVE_LOW_VALUES, fid, dims, pos, threshold
