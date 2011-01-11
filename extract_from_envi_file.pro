@@ -127,7 +127,12 @@ FUNCTION EXTRACT_CRESTS_NEW, dem_fid, aspect_fid
   ENDFOR
   
   
-  output = output + (100 * CHECK_ASPECT_CHANGE(ASPECT_IMAGE, ns, nl))
+  output = output + (10* CHECK_ASPECT_CHANGE(ASPECT_IMAGE, ns, nl))
+  
+  
+  ; Remove anything that has crept in below the thresholds (eg. from aspect calcs)
+  indices = WHERE(dem_image LT 1)
+  output[indices] = 0
   
   print, "DONE!"
   o = output
