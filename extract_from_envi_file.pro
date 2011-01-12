@@ -31,6 +31,36 @@ FUNCTION EXTRACT_FROM_ENVI_FILE
   return, crest_fid
 END
 
+FUNCTION EXTRACT_CRESTS_NEW, dem_fid, aspect_fid
+  ; Get the dims of the file
+  ENVI_FILE_QUERY, aspect_fid, dims=dims
+  
+  aspect_image = ENVI_GET_DATA(fid=aspect_fid, dims=dims, pos=0)
+  dem_image = ENVI_GET_DATA(fid=dem_fid, dims=dims, pos=0)
+  
+  ; Create the output image
+  ns = dims[2]
+  nl = dims[4]
+  output = intarr(ns + 1, nl + 1)
+  
+  sizes = [5, 10, 20, 50, 100]
+  FOR i = 0, N_ELEMENTS(sizes) - 1 DO BEGIN
+  print, "Checking ", sizes[i]
+  print, "Local maxima"
+  output = output + CHECK_LOCAL_MAXIMA(dem_image, ns, nl, sizes[i])
+  print, "Aspect change"
+  output = output + CHECK_ASPECT_CHANGE(aspect_image, ns, nl, sizes[i])
+  ENDFOR
+    
+  ; Remove anything that has crept in below the thresholds (eg. from aspect calcs)
+  indices = WHERE(dem_image LT 1)
+  output[indices] = 0
+  
+  print, "DONE!"
+  o = output
+  ENVI_ENTER_DATA, o
+END
+
 FUNCTION GET_LOCAL_LINE, n, x, y, arr
   ; This gets the n long line around the given x and y values
   ; It will repeat edge values as needed to provide the correctly sized return array
@@ -76,14 +106,14 @@ FUNCTION CHECK_LOCAL_MAXIMA, dem_image, ns, nl, length
   return, output
 END
 
-FUNCTION CHECK_ASPECT_CHANGE, aspect_image, ns, nl
+FUNCTION CHECK_ASPECT_CHANGE, aspect_image, ns, nl, distance
   output = intarr(ns+1, nl+1)
   
   FOR x = 0, ns DO BEGIN
     FOR y = 0, nl DO BEGIN
       ; For each pixel in image
       ; Get the 5x5 local neighbourhood
-      line = GET_LOCAL_LINE(5, x, y, aspect_image)
+      line = GET_LOCAL_LINE(distance, x, y, aspect_image)
       
       len = N_ELEMENTS(line)
       
@@ -108,33 +138,3 @@ FUNCTION CHECK_ASPECT_CHANGE, aspect_image, ns, nl
   return, output
 END
 
-FUNCTION EXTRACT_CRESTS_NEW, dem_fid, aspect_fid
-  ; Get the dims of the file
-  ENVI_FILE_QUERY, aspect_fid, dims=dims
-  
-  aspect_image = ENVI_GET_DATA(fid=aspect_fid, dims=dims, pos=0)
-  dem_image = ENVI_GET_DATA(fid=dem_fid, dims=dims, pos=0)
-  
-  ; Create the output image
-  ns = dims[2]
-  nl = dims[4]
-  output = intarr(ns + 1, nl + 1)
-  
-  sizes = [5, 10, 20, 50, 100]
-  FOR i = 0, N_ELEMENTS(sizes) - 1 DO BEGIN
-  print, "Checking ", sizes[i]
-  output = output + CHECK_LOCAL_MAXIMA(dem_image, ns, nl, sizes[i])
-  ENDFOR
-  
-  
-  output = output + (10* CHECK_ASPECT_CHANGE(ASPECT_IMAGE, ns, nl))
-  
-  
-  ; Remove anything that has crept in below the thresholds (eg. from aspect calcs)
-  indices = WHERE(dem_image LT 1)
-  output[indices] = 0
-  
-  print, "DONE!"
-  o = output
-  ENVI_ENTER_DATA, o
-END
