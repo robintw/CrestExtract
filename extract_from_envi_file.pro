@@ -49,8 +49,10 @@ FUNCTION EXTRACT_CRESTS_NEW, dem_fid, aspect_fid, slope_fid
   output = intarr(ns + 1, nl + 1)
   
   ; Set distances (in sizes variable) and weights for the local maxima and aspect change checking
-  sizes = [5, 10, 20, 50, 100]
-  weights = [1, 1, 2, 5, 10]
+  sizes = [10, 20, 50, 100]
+  weights = [1, 2, 5, 10]
+  
+  
   FOR i = 0, N_ELEMENTS(sizes) - 1 DO BEGIN
     print, "Checking ", sizes[i]
     print, "Local maxima"
@@ -179,18 +181,15 @@ FUNCTION CHECK_ASPECT_CHANGE, aspect_image, ns, nl, distance
       
       section_len = (len - 1) / 2
       
-      LHS = line[0:section_len - 1]
-      RHS = line[section_len + 1: len - 1]
+      ;LHS = line[0:section_len - 1]
+      ;RHS = line[section_len + 1: len - 1]
       
-      res = WHERE(LHS GT 180, LHS_count)
-      res = WHERE(RHS LT 180, RHS_count)
       
-      IF LHS_count EQ 0 AND RHS_count EQ 0 THEN output[x, y] += 1
-      
-      res = WHERE(LHS LT 180, LHS_count)
-      res = WHERE(RHS GT 180, RHS_count)
-      
-      IF LHS_count EQ 0 AND RHS_count EQ 0 THEN output[x, y] += 1
+      ; Faster (and more concise) way of doing:
+      ; Split the line into a LHS and a RHS
+      ; Check each side to make sure no values are greater than/less than the thresholds
+      IF (MAX(line[0:section_len - 1]) LE 180) AND (MIN(line[section_len + 1: len - 1]) GE 180) THEN output[x,y] += 1
+      IF (MAX(line[0:section_len - 1]) GE 180) AND (MIN(line[section_len + 1: len - 1]) LE 180) THEN output[x,y] += 1
       ENDFOR
     ENDFOR
   ENDFOR
