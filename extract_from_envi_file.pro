@@ -49,16 +49,16 @@ FUNCTION EXTRACT_CRESTS_NEW, dem_fid, aspect_fid, slope_fid
   output = intarr(ns + 1, nl + 1)
   
   ; Set distances (in sizes variable) and weights for the local maxima and aspect change checking
-  sizes = [10, 20, 50, 100]
-  weights = [1, 2, 5, 10]
-  
+  sizes = [20, 50, 100]
+  aspect_weights = [4, 20, 40]
+  maxima_weights = [2, 10, 20]
   
   FOR i = 0, N_ELEMENTS(sizes) - 1 DO BEGIN
     print, "Checking ", sizes[i]
     print, "Local maxima"
-    output = output + (weights[i] * CHECK_LOCAL_MAXIMA(dem_image, ns, nl, sizes[i]))
+    output = output + (maxima_weights[i] * CHECK_LOCAL_MAXIMA(dem_image, ns, nl, sizes[i]))
     print, "Aspect change"
-    output = output + (weights[i] * CHECK_ASPECT_CHANGE(aspect_image, ns, nl, sizes[i]))
+    output = output + (aspect_weights[i] * CHECK_ASPECT_CHANGE(aspect_image, ns, nl, sizes[i]))
   ENDFOR
     
   ; Remove anything that has crept in below the thresholds (eg. from aspect calcs)
