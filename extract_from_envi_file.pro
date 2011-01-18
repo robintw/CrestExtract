@@ -51,8 +51,7 @@ FUNCTION EXTRACT_CRESTS_NEW, dem_fid, aspect_fid, slope_fid
   ; Set distances (in sizes variable) and weights for the local maxima and aspect change checking
   sizes = [10, 20, 50, 100]
   weights = [1, 2, 5, 10]
-  
-  
+
   FOR i = 0, N_ELEMENTS(sizes) - 1 DO BEGIN
     print, "Checking ", sizes[i]
     print, "Local maxima"
