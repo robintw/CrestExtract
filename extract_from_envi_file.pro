@@ -121,43 +121,10 @@ FUNCTION CHECK_LOCAL_MAXIMA, dem_image, ns, nl, length
       
       row = GET_LOCAL_LINE_HORIZ(length, x, y, dem_image)
       val = MAX(row, subscript)
-      if subscript EQ ((length - 1) / 2) then output[x, y] += 1
+      if subscript EQ ((length - 1) / 2) then output[x, y] += 5
       col = GET_LOCAL_LINE_VERT(length, x, y, dem_image)
       val = MAX(row, subscript)
       if subscript EQ ((length - 1) / 2) then output[x, y] += 1
-    ENDFOR
-  ENDFOR
-  
-  return, output
-END
-
-FUNCTION CHECK_SLOPE_ANGLE, slope_image, ns, nl, distance
-  output = intarr(ns+1, nl+1)
-  
-  FOR x = 0, ns DO BEGIN
-    FOR y = 0, nl DO BEGIN
-      ; For each pixel in image
-      ; Get the local line of the specified size
-      line = GET_LOCAL_LINE(distance, x, y, slope_image)
-      
-      len = N_ELEMENTS(line)
-      
-      section_len = (len - 1) / 2
-      
-      ; Get the left-hand-side of the line and the right-hand-side
-      LHS = line[0:section_len - 1]
-      RHS = line[section_len + 1: len - 1]
-      
-      res = WHERE(LHS GT 180, LHS_count)
-      res = WHERE(RHS LT 180, RHS_count)
-      
-      IF LHS_count EQ 0 AND RHS_count EQ 0 THEN output[x, y] += 1
-      
-      res = WHERE(LHS LT 180, LHS_count)
-      res = WHERE(RHS GT 180, RHS_count)
-      
-      IF LHS_count EQ 0 AND RHS_count EQ 0 THEN output[x, y] += 1
-      
     ENDFOR
   ENDFOR
   
@@ -172,8 +139,8 @@ FUNCTION CHECK_ASPECT_CHANGE, aspect_image, ns, nl, distance
       ; For each pixel in image
       hline = GET_LOCAL_LINE_HORIZ(distance, x, y, aspect_image)
       vline = GET_LOCAL_LINE_VERT(distance, x, y, aspect_image)
-      
       lines = [ [hline],[vline] ] 
+      weights = [5, 1]
       
       FOR i = 0, 1 DO BEGIN
       line = lines[*,i]
@@ -181,15 +148,18 @@ FUNCTION CHECK_ASPECT_CHANGE, aspect_image, ns, nl, distance
       
       section_len = (len - 1) / 2
       
-      ;LHS = line[0:section_len - 1]
-      ;RHS = line[section_len + 1: len - 1]
+      LHS = line[0:section_len - 1]
+      RHS = line[section_len + 1: len - 1]
       
+      res = WHERE(LHS GT 180, LHS_count)
+      res = WHERE(RHS LT 180, RHS_count)
       
-      ; Faster (and more concise) way of doing:
-      ; Split the line into a LHS and a RHS
-      ; Check each side to make sure no values are greater than/less than the thresholds
-      IF (MAX(line[0:section_len - 1]) LE 180) AND (MIN(line[section_len + 1: len - 1]) GE 180) THEN output[x,y] += 1
-      IF (MAX(line[0:section_len - 1]) GE 180) AND (MIN(line[section_len + 1: len - 1]) LE 180) THEN output[x,y] += 1
+      IF LHS_count EQ 0 AND RHS_count EQ 0 THEN output[x, y] += (1 * weights[i])
+      
+      res = WHERE(LHS LT 180, LHS_count)
+      res = WHERE(RHS GT 180, RHS_count)
+      
+      IF LHS_count EQ 0 AND RHS_count EQ 0 THEN output[x, y] += (1 * weights[i])
       ENDFOR
     ENDFOR
   ENDFOR
