@@ -53,6 +53,8 @@ FUNCTION EXTRACT_CRESTS_NEW, dem_fid, aspect_fid, slope_fid
   aspect_weights = [4, 20, 40]
   maxima_weights = [2, 10, 20]
   
+  t1 = SYSTIME(/seconds)
+  
   FOR i = 0, N_ELEMENTS(sizes) - 1 DO BEGIN
     print, "Checking ", sizes[i]
     print, "Local maxima"
@@ -60,12 +62,15 @@ FUNCTION EXTRACT_CRESTS_NEW, dem_fid, aspect_fid, slope_fid
     print, "Aspect change"
     output = output + (aspect_weights[i] * CHECK_ASPECT_CHANGE(aspect_image, ns, nl, sizes[i]))
   ENDFOR
-    
+  
+  t2 = SYSTIME(/seconds)
+  
   ; Remove anything that has crept in below the thresholds (eg. from aspect calcs)
   indices = WHERE(dem_image LT 1)
   output[indices] = 0
   
   print, "DONE!"
+  print, t2 - t1
   o = output
   ENVI_ENTER_DATA, o
   return, output
