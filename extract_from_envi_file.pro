@@ -156,15 +156,19 @@ FUNCTION CHECK_ASPECT_CHANGE, aspect_image, ns, nl, distance
       LHS = line[0:section_len - 1]
       RHS = line[section_len + 1: len - 1]
       
-      res = WHERE(LHS GT 180, LHS_count)
-      res = WHERE(RHS LT 180, RHS_count)
+      IF ARRAY_EQUAL(LHS GT 180, 0) && array_equal(RHS LT 180, 0) THEN output[x, y] += (1 * weights[i])
       
-      IF LHS_count EQ 0 AND RHS_count EQ 0 THEN output[x, y] += (1 * weights[i])
+      IF ARRAY_EQUAL(RHS GT 180, 0) && array_equal(LHS LT 180, 0) THEN output[x, y] += (1 * weights[i])
       
-      res = WHERE(LHS LT 180, LHS_count)
-      res = WHERE(RHS GT 180, RHS_count)
-      
-      IF LHS_count EQ 0 AND RHS_count EQ 0 THEN output[x, y] += (1 * weights[i])
+;      res = WHERE(LHS GT 180, LHS_count)
+;      res = WHERE(RHS LT 180, RHS_count)
+;      
+;      IF LHS_count EQ 0 AND RHS_count EQ 0 THEN output[x, y] += (1 * weights[i])
+;      
+;      res = WHERE(LHS LT 180, LHS_count)
+;      res = WHERE(RHS GT 180, RHS_count)
+;      
+;      IF LHS_count EQ 0 AND RHS_count EQ 0 THEN output[x, y] += (1 * weights[i])
       ENDFOR
     ENDFOR
   ENDFOR
