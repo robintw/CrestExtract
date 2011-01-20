@@ -1,5 +1,5 @@
 PRO TEST_COLLAPSE
-  ENVI_SELECT, fid=fid, dims=dims, pos=pos
+  ENVI_SELECT, fid=fid, dims=dims, pos=pos, title="Slope"
   slope = ENVI_GET_DATA(fid=fid, dims=dims, pos=pos)
   
   ENVI_SELECT, fid=fid, dims=dims, pos=pos
@@ -15,9 +15,9 @@ PRO TEST_COLLAPSE
   IF count THEN fitness[indices] = 0
   
   
-  collapse, fitness, horiz_binary, 1, 0, xmax, ymax
+  collapse, fitness, horiz_binary, 10, 0, xmax, ymax
   
-  collapse, fitness, vert_binary, 0, 1, xmax, ymax
+  collapse, fitness, vert_binary, 0, 10, xmax, ymax
   
   binary = horiz_binary OR vert_binary
   
