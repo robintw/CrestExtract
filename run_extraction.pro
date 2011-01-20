@@ -1,6 +1,7 @@
 PRO RUN_EXTRACTION
   dem_threshold = 1
   output_threshold = 100
+  output_filename = "D:\FinalOutput.tif"
   
   ; Get file using a GUI dialog
   ENVI_SELECT, fid=fid, dims=dims, pos=pos
@@ -36,11 +37,12 @@ PRO RUN_EXTRACTION
   slope_image = ENVI_GET_DATA(fid=slope_fid, dims=dims, pos=0)
   
   ; Do collapsing here
-  final_output = POST_PROCESS(slope_image, output, 10)
+  final_output = POST_PROCESS(slope_image, output, 2)
   
   print, "Collapsed image"
   
-  IMAGE_TO_ENVI, final_output
-  
-  ; Do export here
+  print, "Exporting to TIFF file at " + STRTRIM(output_filename)
+  ENVI_ENTER_DATA, final_output, r_fid=final_fid
+  ENVI_OUTPUT_TO_EXTERNAL_FORMAT, fid=final_fid, dims=dims, pos=0, out_name=output_filename
+  print, "Finished"
 END
