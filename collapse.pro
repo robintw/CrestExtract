@@ -1,4 +1,13 @@
 ;+
+; NOTE: Modified by Robin Wilson (robin@rtwilson.com) from routine below to
+; accept two gap parameters, one for the x direction and one for the y
+; direction. This gives a calling sequence of:
+; 
+; collapse, image, detect, xgap, ygap, xmax, ymax
+; 
+; -------------------------------
+; Original routine header below
+; 
 ; NAME:
 ;  collapse
 ; PURPOSE:   (one line only)
