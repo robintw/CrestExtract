@@ -72,9 +72,7 @@ FUNCTION EXTRACT_CRESTS, dem_fid, aspect_fid, slope_fid
   indices = WHERE(dem_image LT 1)
   output[indices] = 0
   
-  print, "DONE!"
-  print, t2 - t1
-  o = output
-  ENVI_ENTER_DATA, o
+  print, "Finished initial crest extraction"
+  print, "Time taken (in seconds): ", t2 - t1
   return, output
 END
