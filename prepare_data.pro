@@ -8,10 +8,7 @@ FUNCTION REMOVE_LOW_VALUES, fid, dims, pos, threshold
   return, WholeBand
 END
 
-FUNCTION EXTRACT_FROM_ENVI_FILE
-  ; Get file
-  ENVI_SELECT, fid=fid, dims=dims, pos=pos
-  
+FUNCTION PREPARE_DATA, fid, dims, pos, threshold
   ; Remove the low values from the input image to reduce noise
   thresholded = REMOVE_LOW_VALUES(fid, dims, pos, 1)
   ENVI_ENTER_DATA, thresholded, r_fid=thresholded_fid
@@ -30,7 +27,7 @@ FUNCTION EXTRACT_FROM_ENVI_FILE
   envi_doit, 'conv_doit', fid=LP1_fid, dims=dims, pos=pos, kx=3, ky=3, method=3, $
     /IN_MEMORY, r_fid=LP2_fid
     
-  crest_fid = EXTRACT_CRESTS(thresholded_fid, LP2_fid, slope_fid)
   
-  return, crest_fid
+  
+  return, [thresholded_fid, LP2_fid, slope_fid]
 END
