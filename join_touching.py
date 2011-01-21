@@ -32,11 +32,11 @@ def reverse_array(array):
 def follow_line(row):
     global newLine
     # Do it by following the firstPoint
-    get_points_from_line(row, first_points)
+    get_points_from_line(row, "FIRST")
     print "Length of first points = ", len(newLine)
     first_points_line = newLine
     newLine = arcpy.Array()
-    get_points_from_line(row, last_points)
+    get_points_from_line(row, "LAST")
     last_points_line = newLine
 
     first_beg = first_points_line[0]
@@ -76,20 +76,34 @@ def follow_line(row):
 
     
 
-def get_points_from_line(row, points_dict):
+def get_points_from_line(row, direction):
     global newLine
     oid = row.getValue(OIDField)
     print "Current OID = ", oid
     shape = row.getValue(shape_name)
     print "OID length = ", shape.length
-    visited.append(oid)
-    print "So far we have visited: ", visited
 
+    if direction == "LAST":
+        last_visited.append(oid)
+        print "So far we have visited: ", last_visited
+    elif direction == "FIRST":
+        first_visited.append(oid)
+        print "So far we have visited: ", first_visited
     
     for part in shape.getPart():
         for point in part:
-            found_id = find_key(points_dict, point)
-            print found_id
+            if direction == "LAST":
+                found_id = find_key(last_points, point)
+                print found_id
+            elif direction == "FIRST":
+                found_id = find_key(first_points, point)
+                print found_id
+
+            if direction == "LAST":
+                visited = last_visited
+            elif direction == "FIRST":
+                visited = first_visited
+            
 
             if len(found_id) == 0:
                 newLine.append(point)
@@ -108,7 +122,7 @@ def get_points_from_line(row, points_dict):
                 found_object = arcpy.SearchCursor(input_lines, where)
                 for item in found_object:
                     raw_input("Recursing:")
-                    get_points_from_line(item, points_dict)        
+                    get_points_from_line(item, direction)        
         raw_input("Got to end of part:")
 
 input_lines = "D:\\Data\\DunesGIS\\TestOverlaps.shp"
@@ -140,13 +154,19 @@ for row in rows:
 
 
 
-visited = []
+first_visited = []
+last_visited = []
+
 rows = arcpy.SearchCursor(input_lines)
 
 
 for row in rows:
     print "%%%%%%%%%%%%%%%%% Starting new row in input %%%%%%%%%%"
 
+    oid = row.getValue(OIDField)
+
+    if oid in last_visited or oid in first_visited:
+        continue
     
     # Create the array to hold all the points that will be put
     # together in a line (eventually)
