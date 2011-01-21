@@ -16,7 +16,15 @@ def points_equal(p1, p2):
     else:
         return False
 
+def print_point(point):
+    print point.X, ", ", point.Y
+
+def print_point_array(array):
+    for point in array:
+        print_point(point)
+
 def append_arrays(array1, array2):
+    array1.remove(len(array1) - 1)
     for item in array2:
         array1.append(item)
 
@@ -24,18 +32,22 @@ def append_arrays(array1, array2):
 
 def reverse_array(array):
     res = arcpy.Array()
-    for i in range(len(array) - 1, 0, -1):
+    for i in range(len(array) - 1, -1, -1):
         res.append(array[i])
 
     return res
 
 def follow_line(row):
     global newLine
-    # Do it by following the firstPoint
+    # Follow it using the first point
     get_points_from_line(row, "FIRST")
     print "Length of first points = ", len(newLine)
     first_points_line = newLine
+
+    # Reset the newLine variable
     newLine = arcpy.Array()
+
+    # Follow it using the last point
     get_points_from_line(row, "LAST")
     last_points_line = newLine
 
@@ -59,7 +71,13 @@ def follow_line(row):
         print "We've only got one line here, so just use one of them"
         polyline = arcpy.Polyline(first_points_line)
         featureList.append(polyline)
+        return
 
+    print "#####################"
+    print_point_array(first_points_line)
+    print "#####################"
+    print_point_array(last_points_line)
+    
     # Deal with how the points join up
     if points_equal(first_beg, last_beg):
         final_points_line = append_arrays(reverse_array(first_points_line), last_points_line)
@@ -70,8 +88,14 @@ def follow_line(row):
     elif points_equal(last_end, first_beg):
         final_points_line = append_arrays(last_points_line, first_points_line)
 
+    print "#####################"
+    print "#####################"
+    print_point_array(final_points_line)
+    print "#####################"
+
     # Add the new polyline to the list
     polyline = arcpy.Polyline(final_points_line)
+    print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Length of polyline: ", polyline.type, polyline.pointCount
     featureList.append(polyline)
 
     
@@ -83,12 +107,9 @@ def get_points_from_line(row, direction):
     shape = row.getValue(shape_name)
     print "OID length = ", shape.length
 
-    if direction == "LAST":
-        last_visited.append(oid)
-        print "So far we have visited: ", last_visited
-    elif direction == "FIRST":
-        first_visited.append(oid)
-        print "So far we have visited: ", first_visited
+
+    visited.append(oid)
+    print "So far we have visited: ", visited
     
     for part in shape.getPart():
         for point in part:
@@ -98,12 +119,6 @@ def get_points_from_line(row, direction):
             elif direction == "FIRST":
                 found_id = find_key(first_points, point)
                 print found_id
-
-            if direction == "LAST":
-                visited = last_visited
-            elif direction == "FIRST":
-                visited = first_visited
-            
 
             if len(found_id) == 0:
                 newLine.append(point)
@@ -128,7 +143,7 @@ def get_points_from_line(row, direction):
 input_lines = "D:\\Data\\DunesGIS\\TestOverlaps.shp"
 out_folder = "D:\\Data\\DunesGIS\\OutputOverlaps.shp"
 
-featureList = []
+
 
 # Get the SearchCursor
 rows = arcpy.SearchCursor(input_lines)
@@ -151,27 +166,25 @@ for row in rows:
     first_points[row.getValue(OIDField)] = shape.firstPoint
     last_points[row.getValue(OIDField)] = shape.lastPoint
 
-
-
-
-first_visited = []
-last_visited = []
+visited = []
 
 rows = arcpy.SearchCursor(input_lines)
 
+featureList = []
 
 for row in rows:
-    print "%%%%%%%%%%%%%%%%% Starting new row in input %%%%%%%%%%"
+    
 
     oid = row.getValue(OIDField)
 
-    if oid in last_visited or oid in first_visited:
+    if oid in visited:
         continue
     
     # Create the array to hold all the points that will be put
     # together in a line (eventually)
     newLine = arcpy.Array()
 
+    print "%%%%%%%%%%%%%%%%% Starting new row in input %%%%%%%%%%"
     # Do the work!
     follow_line(row)
 
