@@ -163,7 +163,12 @@ PRO PRUNE
   
   temp = intarr(dims[2] + 1, dims[4] + 1)
   
+  
   FOR i = 0, N_ELEMENTS(regions_to_process) - 1 DO BEGIN
+    print, "Processing region " + STRTRIM(STRING(i)) + " of " + STRTRIM(STRING(N_ELEMENTS(regions_to_process) - 1))
+    
+  
+  
     region = regions_to_process[i]
     
     ; Clear the temp array
@@ -175,11 +180,11 @@ PRO PRUNE
     
     orig_temp = temp
     
-    tvscl, temp
+    ;tvscl, temp
     
     ; Get the endpoints and their indices
     endpoint_image = GET_ENDPOINTS(temp)
-    tvscl, endpoint_image
+    ;tvscl, endpoint_image
     endpoint_indices = WHERE(endpoint_image)
     
     IF N_ELEMENTS(endpoint_indices) EQ 2 THEN BEGIN
