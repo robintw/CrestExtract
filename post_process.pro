@@ -75,6 +75,40 @@ PRO DILATE_AND_THIN, n
 END
 
 FUNCTION GET_ENDPOINTS, image
+  ; Create output image
+  dims = SIZE(image, /DIMENSIONS)
+  output = intarr(dims[0], dims[1])
+  
+  ; Create the hit element
+  hit = intarr(3, 3)
+  hit[1,1] = 1
+  
+  ; Create the miss elements
+  miss1 = [ [0, 0, 0], [1, 0, 1], [1, 1, 1] ]
+  miss2 = [ [1, 1, 0], [1, 0, 0], [1, 1, 0] ]
+  miss3 = [ [1, 1, 1], [1, 0, 1], [0, 0, 0] ]
+  miss4 = [ [0, 1, 1], [0, 0, 1], [0, 1, 1] ]
+  miss5 = [ [1, 0, 1], [1, 0, 0], [1, 1, 1] ]
+  miss6 = [ [1, 1, 1], [1, 0, 1], [1, 0, 0] ]
+  miss7 = [ [1, 1, 1], [0, 0, 1], [1, 0, 1] ]
+  miss8 = [ [1, 0, 1], [0, 0, 1], [1, 1, 1] ]
+  
+  res1 = MORPH_HITORMISS(image, hit, miss1)
+  res2 = MORPH_HITORMISS(image, hit, miss2)
+  res3 = MORPH_HITORMISS(image, hit, miss3)
+  res4 = MORPH_HITORMISS(image, hit, miss4)
+  res5 = MORPH_HITORMISS(image, hit, miss5)
+  res6 = MORPH_HITORMISS(image, hit, miss6)
+  res7 = MORPH_HITORMISS(image, hit, miss7)
+  res8 = MORPH_HITORMISS(image, hit, miss8)
+  
+  
+  output = res1 OR res2 OR res3 OR res4 OR res5 OR res6 OR res7 OR res8
+
+  return, output
+END
+
+FUNCTION OLD_GET_ENDPOINTS, image
   dims = SIZE(image, /DIMENSIONS)
   help, image
   output = intarr(dims[0], dims[1])
@@ -88,6 +122,8 @@ FUNCTION GET_ENDPOINTS, image
   print, count
   IF count GT 0 THEN res[indices] = 0
   
+  IMAGE_TO_ENVI, res
+  
  
   indices = WHERE(res EQ 4, count)
   IF count GT 0 THEN output[indices] = 1
@@ -100,29 +136,82 @@ PRO PRUNE
   
   binary_image = ENVI_GET_DATA(fid=fid, dims=dims, pos=pos)
   
-  help, binary_image
-  
+  final_output = intarr(dims[2] + 1, dims[4] + 1)
+    
   endpoints = GET_ENDPOINTS(binary_image)
   regions = LABEL_REGION(binary_image, /ALL_NEIGHBORS)
-  
-  IMAGE_TO_ENVI, regions
-  
-  help, regions
-  help, endpoints
-  
-  IMAGE_TO_ENVI, endpoints
-  
+
   indices = WHERE(endpoints GT 0, count)
   selected_pixels = regions[indices]
   
   hist = HISTOGRAM(selected_pixels, locations=locs)
   print, MAX(hist)
-  indices = WHERE(hist GT 2, count)
+  indices = WHERE(hist GT 2, count, COMPLEMENT=comp)
+  
+  ok_regions = locs[comp]
+  
+  FOR k = 0, N_ELEMENTS(ok_regions) - 1 DO BEGIN
+    region = ok_regions[k]
+    
+    copying_indices = WHERE(regions EQ region)
+    
+    final_output[copying_indices] = 1
+  END
+  
   IF count EQ 0 THEN RETURN
   regions_to_process = locs[indices]
   
-  help, locs
-  help, regions_to_process
+  temp = intarr(dims[2] + 1, dims[4] + 1)
   
-  print, regions_to_process
+  FOR i = 0, N_ELEMENTS(regions_to_process) - 1 DO BEGIN
+    region = regions_to_process[i]
+    
+    ; Clear the temp array
+    temp[*,*] = 0
+    
+    ; Copy just this region into the temp array
+    region_points = WHERE(regions EQ region)
+    temp[region_points] = 1
+    
+    orig_temp = temp
+    
+    tvscl, temp
+    
+    ; Get the endpoints and their indices
+    endpoint_image = GET_ENDPOINTS(temp)
+    tvscl, endpoint_image
+    endpoint_indices = WHERE(endpoint_image)
+    
+    IF N_ELEMENTS(endpoint_indices) EQ 2 THEN BEGIN
+      print, "Indices = 2"
+      continue
+    ENDIF
+    
+    n = 0
+    ; While there are more than two endpoints
+    WHILE N_ELEMENTS(endpoint_indices) GT 2 DO BEGIN
+      ; Blank these endpoints in the temp image
+      temp[endpoint_indices] = 0
+      
+      ; Get the endpoint indices again
+      endpoint_image = GET_ENDPOINTS(temp)
+      endpoint_indices = WHERE(endpoint_image)
+      n += 1
+    ENDWHILE
+    
+    add = endpoint_image
+    FOR j = 0, n - 1 DO BEGIN
+      add = DILATE(add, intarr(3, 3) + 1)
+      add = add AND orig_temp
+    ENDFOR
+    
+    temp = temp OR add
+    
+    
+    ; We should now have a pruned region in temp
+    ; OR this with the final output image to include it there
+    final_output = final_output OR temp
+  ENDFOR
+  
+  IMAGE_TO_ENVI, final_output
 END
