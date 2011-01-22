@@ -1,10 +1,14 @@
 PRO RUN_EXTRACTION
   dem_threshold = 1
   output_threshold = 100
-  output_filename = "D:\FinalOutput.tif"
+  output_filename = "D:\CrestsOutput.tif"
   
   ; Get file using a GUI dialog
   ENVI_SELECT, fid=fid, dims=dims, pos=pos
+  IF fid[0] EQ -1 THEN BEGIN
+    print, "No file selected - exiting"
+    return
+  ENDIF
   
   ; Prepare the data (threshold, calculate slope and aspect etc)
   fids = PREPARE_DATA(fid, dims, pos, dem_threshold)
@@ -17,22 +21,15 @@ PRO RUN_EXTRACTION
   
   ; TESTING purposes only - put image in ENVI
   IMAGE_TO_ENVI, crests_image
-  
  
   ; Create the output image
   ns = dims[2]
   nl = dims[4]
   output = intarr(ns + 1, nl + 1)
   
-  print, "Created output image"
-  
   output = crests_image GT output_threshold
   
   print, "Thresholded output image"
-  
-  ; TESTING purposes only
-  IMAGE_TO_ENVI, output
-  
   ; Get the slope image as an array
   slope_image = ENVI_GET_DATA(fid=slope_fid, dims=dims, pos=0)
   
@@ -41,8 +38,9 @@ PRO RUN_EXTRACTION
   
   print, "Collapsed image"
   
+  ; Export output to TIFF file (for best compatability with all GIS/RS systems)
   print, "Exporting to TIFF file at " + STRTRIM(output_filename)
   ENVI_ENTER_DATA, final_output, r_fid=final_fid
-  ENVI_OUTPUT_TO_EXTERNAL_FORMAT, fid=final_fid, dims=dims, pos=0, out_name=output_filename
+  ENVI_OUTPUT_TO_EXTERNAL_FORMAT, fid=final_fid, dims=dims, pos=0, out_name=output_filename, /TIFF
   print, "Finished"
 END
