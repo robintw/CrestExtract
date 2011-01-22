@@ -1,16 +1,15 @@
 FUNCTION REMOVE_LOW_VALUES, fid, dims, pos, threshold
   WholeBand = ENVI_GET_DATA(fid=fid, dims=dims, pos=pos)
   
-  indices = WHERE(WholeBand LT threshold)
-  
-  WholeBand[indices] = 0
+  indices = WHERE(WholeBand LT threshold, count)
+  IF count GT 0 THEN WholeBand[indices] = 0
   
   return, WholeBand
 END
 
 FUNCTION PREPARE_DATA, fid, dims, pos, threshold
   ; Remove the low values from the input image to reduce noise
-  thresholded = REMOVE_LOW_VALUES(fid, dims, pos, 1)
+  thresholded = REMOVE_LOW_VALUES(fid, dims, pos, threshold)
   ENVI_ENTER_DATA, thresholded, r_fid=thresholded_fid
 
   ; Create aspect image
