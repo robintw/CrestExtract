@@ -110,9 +110,29 @@ def get_points_from_line(row, direction):
 
     visited.append(oid)
     print "So far we have visited: ", visited
-    
+
+
     for part in shape.getPart():
-        for point in part:
+        if len(newLine) != 0:
+            most_recently_visited_point = newLine[len(newLine) - 1]
+            
+            # Reverse array if needed here!
+            if points_equal(most_recently_visited_point, shape.lastPoint):
+                # Reverse the array
+                print "!!!!!!! Reversing array"
+                iter_part = reverse_array(part)
+            elif points_equal(most_recently_visited_point, shape.firstPoint):
+                iter_part = part
+            else:
+                print "EVERYTHING HAS GONE BADLY WRONG!"
+                print most_recently_visited_point
+                print shape.lastPoint
+                print shape.firstPoint
+        else:
+            iter_part = part
+
+        
+        for point in iter_part:
             if direction == "LAST":
                 found_id = find_key(last_points, point)
                 print found_id
@@ -121,19 +141,29 @@ def get_points_from_line(row, direction):
                 print found_id
 
             if len(found_id) == 0:
+                print "At point:"
+                print_point(point)
+                print "Appending"
                 newLine.append(point)
                 continue
             elif found_id[0] == oid:
+                print "At point:"
+                print_point(point)
+                print "Appending"
                 newLine.append(point)
                 continue
             elif found_id[0] in visited:
+                print "At point:"
+                print_point(point)
+                print "Appending"
                 newLine.append(point)
                 continue
             else:
-                print "Yes: ", found_id
-                print "Items in newLine = ", len(newLine)
+                newLine.append(point) # append point anyway
+                print "Switching to original line with ID =: ", found_id
+                print "Appending point below anyway:"
+                print_point(point)
                 where = "\"" + str(OIDField) + "\" = " + str(found_id[0])
-                print where
                 found_object = arcpy.SearchCursor(input_lines, where)
                 for item in found_object:
                     raw_input("Recursing:")
