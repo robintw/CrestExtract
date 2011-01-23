@@ -46,28 +46,40 @@ FUNCTION POST_PROCESS, slope_image, dem_image, binary_image, gap
   
   print, "Finished collapsing"
   
+  tvscl, binary
   
   ; Do dilate and thin
   print, "Doing DILATE and THIN"
   
-  binary = DILATE_AND_THIN(binary, dem_image, 3, 2, 1)
+  binary = DILATE_AND_THIN(binary, dem_image, 5, 2, 1)
   
-  PRUNE, binary
+  tvscl, binary
   
-  IMAGE_TO_ENVI, binary
+  binary = NEW_PRUNE(binary)
   
-  binary = DILATE_AND_THIN(binary, dem_image, 5, 2, 5)
+  print, "First prune"
+  tvscl, binary
   
-  IMAGE_TO_ENVI, binary
+  ;IMAGE_TO_ENVI, binary
   
-  PRUNE, binary
+  binary = DILATE_AND_THIN(binary, dem_image, 5, 2, 1)
+  
+  print, "Multiple DandTs"
+  tvscl, binary
+  
+  ;IMAGE_TO_ENVI, binary
+  
+  binary = NEW_PRUNE(binary)
+  
+  print, "Final prune"
+  tvscl, binary
   
   return, binary
 END
 
 FUNCTION NEW_PRUNE, binary_image
-  ENVI_SELECT, fid=fid, dims=dims, pos=pos
-  binary_image = ENVI_GET_DATA(fid=fid, dims=dims, pos=pos)
+  ;ENVI_SELECT, fid=fid, dims=dims, pos=pos
+  ;binary_image = ENVI_GET_DATA(fid=fid, dims=dims, pos=pos)
   
   binary_image = binary_image GT 0
 
