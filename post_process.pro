@@ -75,10 +75,6 @@ PRO DILATE_AND_THIN, n
 END
 
 FUNCTION GET_ENDPOINTS, image
-  ; Create output image
-  dims = SIZE(image, /DIMENSIONS)
-  output = intarr(dims[0], dims[1])
-  
   ; Create the hit element
   hit = intarr(3, 3)
   hit[1,1] = 1
@@ -95,41 +91,16 @@ FUNCTION GET_ENDPOINTS, image
   miss7 = [ [1, 1, 1], [0, 0, 1], [0, 1, 1] ]
   miss8 = [ [0, 0, 1], [1, 0, 1], [1, 1, 1] ]
   
-  res1 = MORPH_HITORMISS(image, hit, miss1)
-  res2 = MORPH_HITORMISS(image, hit, miss2)
-  res3 = MORPH_HITORMISS(image, hit, miss3)
-  res4 = MORPH_HITORMISS(image, hit, miss4)
-  res5 = MORPH_HITORMISS(image, hit, miss5)
-  res6 = MORPH_HITORMISS(image, hit, miss6)
-  res7 = MORPH_HITORMISS(image, hit, miss7)
-  res8 = MORPH_HITORMISS(image, hit, miss8)
   
-  
-  output = res1 OR res2 OR res3 OR res4 OR res5 OR res6 OR res7 OR res8
+  output = MORPH_HITORMISS(image, hit, miss1)
+  output OR= MORPH_HITORMISS(image, hit, miss2)
+  output OR= MORPH_HITORMISS(image, hit, miss3)
+  output OR= MORPH_HITORMISS(image, hit, miss4)
+  output OR= MORPH_HITORMISS(image, hit, miss5)
+  output OR= MORPH_HITORMISS(image, hit, miss6)
+  output OR= MORPH_HITORMISS(image, hit, miss7)
+  output OR= MORPH_HITORMISS(image, hit, miss8)
 
-  return, output
-END
-
-FUNCTION OLD_GET_ENDPOINTS, image
-  dims = SIZE(image, /DIMENSIONS)
-  help, image
-  output = intarr(dims[0], dims[1])
-  help, output
-  
-  kernel = intarr(3, 3) + 1
-  
-  res = CONVOL(image, kernel, /center, /edge_truncate)
-  
-  indices = WHERE(image EQ 0, count)
-  print, count
-  IF count GT 0 THEN res[indices] = 0
-  
-  IMAGE_TO_ENVI, res
-  
- 
-  indices = WHERE(res EQ 4, count)
-  IF count GT 0 THEN output[indices] = 1
-  
   return, output
 END
 
