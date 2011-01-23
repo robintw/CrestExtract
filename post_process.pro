@@ -50,7 +50,7 @@ FUNCTION POST_PROCESS, slope_image, binary_image, gap
   return, binary
 END
 
-PRO DILATE_AND_THIN, n
+PRO DILATE_AND_THIN, n, threshold, reps
   ENVI_SELECT, fid=fid, dims=dims, pos=pos, title="Binary Image"
   
   binary_image = ENVI_GET_DATA(fid=fid, dims=dims, pos=pos)
@@ -59,16 +59,19 @@ PRO DILATE_AND_THIN, n
   
   dem_image = ENVI_GET_DATA(fid=fid, dims=dims, pos=pos)
   
+  help, dem_image
+  help, binary_image
+  
+  FOR i = 0, reps - 1 DO BEGIN
   ;res = MORPH_CLOSE(image, indgen(n, n) + 1)
   binary_image = DILATE(binary_image, indgen(n,n) + 1)
   binary_image = DILATE(binary_image, indgen(n,n) + 1)
   binary_image = THIN(binary_image)
   
-  IMAGE_TO_ENVI, binary_image
-  
   ; Remove any pixels where the DEM is less than a certain value
   indices = WHERE(dem_image LT 2, count)
   IF count GT 0 THEN binary_image[indices] = 0
+  ENDFOR
   
   ENVI_ENTER_DATA, binary_image
   
@@ -79,16 +82,14 @@ FUNCTION GET_ENDPOINTS, image
   hit = intarr(3, 3)
   hit[1,1] = 1
   
-  ; Create the miss elements
+  
   miss1 = [ [1, 0, 0], [1, 0, 1], [1, 1, 1] ]
-  miss2 = [ [1, 1, 1], [1, 0, 0], [1, 1, 0] ]
-  miss3 = [ [1, 1, 1], [1, 0, 1], [0, 0, 1] ]
-  miss4 = [ [0, 1, 1], [0, 0, 1], [1, 1, 1] ]
-  
-  
-  miss5 = [ [1, 1, 0], [1, 0, 0], [1, 1, 1] ]
-  miss6 = [ [1, 1, 1], [1, 0, 1], [1, 0, 0] ]
-  miss7 = [ [1, 1, 1], [0, 0, 1], [0, 1, 1] ]
+  miss2 = [ [1, 1, 0], [1, 0, 0], [1, 1, 1] ]
+  miss3 = [ [1, 1, 1], [1, 0, 0], [1, 1, 0] ]
+  miss4 = [ [1, 1, 1], [1, 0, 1], [1, 0, 0] ]
+  miss5 = [ [1, 1, 1], [1, 0, 1], [0, 0, 1] ]
+  miss6 = [ [1, 1, 1], [0, 0, 1], [0, 1, 1] ]
+  miss7 = [ [0, 1, 1], [0, 0, 1], [1, 1, 1] ]
   miss8 = [ [0, 0, 1], [1, 0, 1], [1, 1, 1] ]
   
   
@@ -105,6 +106,10 @@ FUNCTION GET_ENDPOINTS, image
 END
 
 PRO PRUNE
+  ; Define constants
+  ; 3 x 3 array of 1's
+  ONES_ARRAY = intarr(3, 3) + 1
+  
   ENVI_SELECT, fid=fid, dims=dims, pos=pos, title="Binary Image"
   
   binary_image = ENVI_GET_DATA(fid=fid, dims=dims, pos=pos)
@@ -118,7 +123,8 @@ PRO PRUNE
   selected_pixels = regions[indices]
   
   hist = HISTOGRAM(selected_pixels, locations=locs)
-  print, MAX(hist)
+
+
   indices = WHERE(hist GT 2, count, COMPLEMENT=comp)
   
   ok_regions = locs[comp]
@@ -145,7 +151,7 @@ PRO PRUNE
     region = regions_to_process[i]
     
     ; Clear the temp array
-    temp[*,*] = 0
+    temp = intarr(dims[2] + 1, dims[4] + 1)
     
     ; Copy just this region into the temp array
     region_points = WHERE(regions EQ region)
@@ -157,6 +163,7 @@ PRO PRUNE
     
     ; Get the endpoints and their indices
     endpoint_image = GET_ENDPOINTS(temp)
+    orig_endpoint_image = endpoint_image
     ;tvscl, endpoint_image
     endpoint_indices = WHERE(endpoint_image)
     
@@ -177,16 +184,20 @@ PRO PRUNE
       n += 1
     ENDWHILE
     
-    add = endpoint_image
-    FOR j = 0, n - 1 DO BEGIN
-      add = DILATE(add, intarr(3, 3) + 1)
-      add = add AND orig_temp
+    ; Extend from the final endpoints (after they have been reduced to just two)
+    ; back along the path using conditional dilation (dilating then ANDing with
+    ; the original to ensure dilation is only along the original path
+    FOR j = 0, (2 * n) - 1 DO BEGIN
+      endpoint_image = DILATE(endpoint_image, ONES_ARRAY)
+      tvscl, endpoint_image
+      endpoint_image = endpoint_image AND orig_temp
+      tvscl, endpoint_image
     ENDFOR
     
-    temp = temp OR add
+    ; Add the conditionally dilated pixels in to the pruned line
+    temp = temp OR endpoint_image
     
-    
-    ; We should now have a pruned region in temp
+    ; We've now got the pruned line in temp, so
     ; OR this with the final output image to include it there
     final_output = final_output OR temp
   ENDFOR
