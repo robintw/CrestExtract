@@ -101,10 +101,12 @@ def add_and_check_joining_lines(input_lines, input_raster, distance):
     # Select based on the SQL WHERE clause we just constructed
     arcpy.SelectLayerByAttribute_management("tempLayer", "NEW_SELECTION", where_expression)
 
+    # If we have some features selected then delete them, as they're the
+    # ones we don't want
     if arcpy.GetCount_management("tempLayer") > 0:
         arcpy.DeleteFeatures_management("tempLayer")
 
-    
+    arcpy.Merge_management([input_lines, "D:\TempLines.shp"], "D:\AddJoinedLines_Output.shp")
 
 print "Starting Main Processing Script"
 
