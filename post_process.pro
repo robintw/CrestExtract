@@ -24,60 +24,73 @@ PRO POST_PROCESS_GUI
   IMAGE_TO_ENVI, output
 END
 
-FUNCTION POST_PROCESS, slope_image, dem_image, binary_image, gap
-  ; Create two copies of the binary image to use in the processing below
-  ; as the routine modifies the image provided to it
-  horiz_binary = binary_image
-  vert_binary = binary_image
-  
-  ; Get the fitness image by processing the slope image
-  fitness = GET_FITNESS_IMAGE(slope_image)
-  
-  indices = WHERE(binary_image EQ 0, count)
-  IF count GT 0 THEN fitness[indices] = 0
-  
-  ; Run the collapse routine in both directions
-  collapse, fitness, horiz_binary, gap, 0, xmax, ymax
-  
-  collapse, fitness, vert_binary, 0, gap, xmax, ymax
-  
-  ; Combine the results
-  binary = horiz_binary OR vert_binary
+FUNCTION RUN_COLLAPSE, binary_image, slope_image, gap
+    ; Create two copies of the binary image to use in the processing below
+    ; as the routine modifies the image provided to it
+    horiz_binary = binary_image
+    vert_binary = binary_image
+    
+    ; Get the fitness image by processing the slope image
+    fitness = GET_FITNESS_IMAGE(slope_image)
+    
+    indices = WHERE(binary_image EQ 0, count)
+    IF count GT 0 THEN fitness[indices] = 0
+    
+    ; Run the collapse routine in both directions
+    collapse, fitness, horiz_binary, gap, 0, xmax, ymax
+    
+    collapse, fitness, vert_binary, 0, gap, xmax, ymax
+    
+    ; Combine the results
+    binary = horiz_binary OR vert_binary
+    
+    return, binary
+END
+
+FUNCTION POST_PROCESS, slope_image, dem_image, binary_image, gap, d_and_t_size, dem_threshold, d_and_t_repeats, prune_length
+  ; Run the collapse routine to shrink the line down to one pixel wide
+  ; in an intelligent way
+  binary = RUN_COLLAPSE(binary_image, slope_image, gap)
   
   print, "Finished collapsing"
   
   tvscl, binary
   
+  IMAGE_TO_ENVI, binary
+  
   ; Do dilate and thin
   print, "Doing DILATE and THIN"
   
-  binary = DILATE_AND_THIN(binary, dem_image, 5, 2, 1)
+  binary = DILATE_AND_THIN(binary, dem_image, d_and_t_size, dem_threshold, d_and_t_repeats)
+  IMAGE_TO_ENVI, binary
+  binary = NEW_PRUNE(binary, prune_length)
+  IMAGE_TO_ENVI, binary
+  binary = DILATE_AND_THIN(binary, dem_image, d_and_t_size, dem_threshold, d_and_t_repeats)  
+  IMAGE_TO_ENVI, binary
   
-  tvscl, binary
-  
-  binary = NEW_PRUNE(binary)
-  
-  print, "First prune"
-  tvscl, binary
-  
-  ;IMAGE_TO_ENVI, binary
-  
-  binary = DILATE_AND_THIN(binary, dem_image, 5, 2, 1)
-  
-  print, "Multiple DandTs"
-  tvscl, binary
-  
-  ;IMAGE_TO_ENVI, binary
-  
-  binary = NEW_PRUNE(binary)
-  
-  print, "Final prune"
-  tvscl, binary
+  binary = NEW_PRUNE(binary, prune_length)
+;  
+;  print, "First prune"
+;  tvscl, binary
+;  
+;  ;IMAGE_TO_ENVI, binary
+;  
+;  binary = DILATE_AND_THIN(binary, dem_image, 5, 2, 1)
+;  
+;  print, "Multiple DandTs"
+;  tvscl, binary
+;  
+;  ;IMAGE_TO_ENVI, binary
+;  
+;  binary = NEW_PRUNE(binary, 10)
+;  
+;  print, "Final prune"
+;  tvscl, binary
   
   return, binary
 END
 
-FUNCTION NEW_PRUNE, binary_image
+FUNCTION NEW_PRUNE, binary_image, n
   ;ENVI_SELECT, fid=fid, dims=dims, pos=pos
   ;binary_image = ENVI_GET_DATA(fid=fid, dims=dims, pos=pos)
   
@@ -108,7 +121,7 @@ FUNCTION NEW_PRUNE, binary_image
   
   input = binary_image
   
-  FOR i = 0, 10 DO BEGIN
+  FOR i = 0, n - 1 DO BEGIN
   print, i
   ; Thin with structuring elements
   thinned = MORPH_THIN(input, hit1, miss1)
@@ -133,29 +146,29 @@ FUNCTION NEW_PRUNE, binary_image
   endpoints OR= MORPH_HITORMISS(thinned, hit7, miss7)
   endpoints OR= MORPH_HITORMISS(thinned, hit8, miss8)
   
-  tvscl, endpoints
+  ;tvscl, endpoints
   
   ; Conditionally dilate
   
   dilated = endpoints
-  FOR i = 0, 10 DO BEGIN
+  FOR i = 0, n - 1 DO BEGIN
   dilated OR= DILATE(dilated, intarr(3, 3) + 1)
   ENDFOR
   
   print, MAX(binary_image)
   
-  tvscl, binary_image
+  ;tvscl, binary_image
   
   ; Conditionalise it
   dilated = dilated AND binary_image
   
-  tvscl, dilated
+  ;tvscl, dilated
   
-  IMAGE_TO_ENVI, dilated
+  ;IMAGE_TO_ENVI, dilated
   
   ; Get final result
   output = thinned OR dilated
-  IMAGE_TO_ENVI, output
+  ;IMAGE_TO_ENVI, output
   return, output
 END
 
@@ -301,7 +314,7 @@ PRO PRUNE, binary_image
     ; Add the conditionally dilated pixels in to the pruned line
     temp = temp OR endpoint_image
     
-    tvscl, temp
+    ;tvscl, temp
     
     ; We've now got the pruned line in temp, so
     ; OR this with the final output image to include it there

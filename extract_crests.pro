@@ -38,7 +38,7 @@ FUNCTION GET_LOCAL_SUBSET, n, x, y, arr
   return, reform(arr[x + xoffsets, y + yoffsets],n,n)
 END
 
-FUNCTION EXTRACT_CRESTS, dem_fid, aspect_fid, slope_fid
+FUNCTION EXTRACT_CRESTS, dem_fid, aspect_fid, slope_fid, dem_threshold
   ; Get the dims of the file
   ENVI_FILE_QUERY, aspect_fid, dims=dims
   
@@ -69,8 +69,8 @@ FUNCTION EXTRACT_CRESTS, dem_fid, aspect_fid, slope_fid
   t2 = SYSTIME(/seconds)
   
   ; Remove anything that has crept in below the thresholds (eg. from aspect calcs)
-  indices = WHERE(dem_image LT 1)
-  output[indices] = 0
+  indices = WHERE(dem_image LT dem_threshold, count)
+  IF count GT 0 THEN output[indices] = 0
   
   print, "Finished initial crest extraction"
   print, "Time taken (in seconds): ", t2 - t1
