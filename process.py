@@ -9,11 +9,58 @@
 import arcpy
 import os
 import subprocess
+import tempfile
+import gc
+import random
+
+def remove_shapefile(filename):
+    """Removes a shapefile and all its associated files. The given filename can be any of the files
+    include in the shapefile, but will normally be the .shp file"""
+    extensions = [".dbf", ".sbn", ".sbx", ".shp", ".shp.xml", ".shx"]
+
+    no_ext, ext = os.path.splitext(filename)
+
+    for extension in extensions:
+        filepath = no_ext + extension
+        if os.path.isfile(filepath):
+            os.remove(filepath)
+
+def create_temp_filename(filename):
+    """Create a filename which can then be used as a temporary file.
+    Simply adds the filename given to the temporary folder path on the OS,
+    and adds a random number to the end to make it fairly unique."""
+
+    # Get the temporary path for the OS we're running on
+    tempdir = tempfile.gettempdir()
+
+    base, ext = os.path.splitext(filename)
+
+    filename = base + str(random.randint(1,500)) + ext
+
+    filepath = os.path.join(tempdir, filename)
+
+    # If the file already exists then remove it
+    if os.path.isfile(filepath):
+        remove_shapefile(filepath)
+
+    return filepath
 
 def add_joining_lines(input_lines, output_lines, max_distance):
+    """Add lines between the ends of each of the input lines if the distance is
+    less than max_distance. Store these new lines in output_lines"""
+    
     print "Starting add_joining_lines"
     
-    points = "D:\\Data\\DunesGIS\\TempPoints.shp"
+    points = create_temp_filename("AJL_Points.shp")
+
+    print points
+    print "------------------------------"
+
+    print os.path.dirname(output_lines)
+    print os.path.basename(output_lines)
+
+    if os.path.isfile(output_lines):
+        remove_shapefile(output_lines)
 
     arcpy.CreateFeatureclass_management(os.path.dirname(output_lines), os.path.basename(output_lines), "POLYLINE")
 
@@ -24,16 +71,16 @@ def add_joining_lines(input_lines, output_lines, max_distance):
     arcpy.Near_analysis(points, points, max_distance, True, True)
 
     # Get the SearchCursor to allow us to iterate over the points
-    rows = arcpy.SearchCursor(points)
+    points_rows = arcpy.SearchCursor(points)
 
     # Also get an InsertCursor to allow us to add to the lines
-    line_rows = arcpy.InsertCursor(output_lines)
+    output_rows = arcpy.InsertCursor(output_lines)
 
     # Get the shape field name
-    shape_name = arcpy.Describe(points).shapeFieldName
+    points_shape_name = arcpy.Describe(points).shapeFieldName
 
     # For each row (that is, each line in the input dataset)
-    for row in rows:
+    for row in points_rows:
         # Get the nearest point found
         new_x = row.getValue("NEAR_X")
         new_y = row.getValue("NEAR_Y")
@@ -42,18 +89,44 @@ def add_joining_lines(input_lines, output_lines, max_distance):
         if new_x == -1 or new_y == -1:
             continue
 
-        # Get the current X and Y values
-        part = row.getValue(shape_name).getPart()
+        # Get the FID of the line that this point was originally part of
+        orig_fid = row.getValue("ORIG_FID")
+
+        # Get the details of the input lines file (OID field name and the Shape field name)
+        desc = arcpy.Describe(input_lines)
+        oid_field = desc.OIDFieldName
+        line_shape_name = desc.shapeFieldName
+
+        # Construct the SQL WHERE clause to select the original line corresponding to the selected
+        # points
+        where_clause = arcpy.AddFieldDelimiters(input_lines, oid_field) + " = " + str(orig_fid)
+        orig_rows = arcpy.SearchCursor(input_lines, where_clause)
+
+        # Get the X and Y values of the current point
+        part = row.getValue(points_shape_name).getPart()
         current_x = part.X
         current_y = part.Y
 
-        # Check to see that the nearest points aren't just the points at the end of this line
-        if current_x == new_x or current_y == new_y:
-            print "Equals"
-            continue
-            
-        #print new_x, new_y, " : ", current_x, current_y
+        # There will only be one record returned from the SQL statement above
+        # so just get it (don't bother with a loop)
+        line_row = orig_rows.next()
 
+        # Get the first and last points of the selected line
+        geom = line_row.Shape
+        firstp = geom.firstPoint
+        lastp = geom.lastPoint
+
+        # Check to see if we are trying to connect one end of a line with the other end
+        # If so, continue to the next loop iteration (that is, the next point)
+        # NB: Two if statements are required as it needs to be checked both ways around
+        if (current_x == firstp.X and current_y == firstp.Y) and (new_x == lastp.X and new_y == lastp.Y):
+            continue
+        elif (current_x == lastp.X and current_y == lastp.Y) and (new_x == firstp.X and new_y == firstp.Y):
+            continue
+
+        # If we've got to here then we want to create the line (we'll have 'continue'd before this
+        # if there was a problem with the line. So...
+        
         # Add the points to a new array of points for the line
         lineArray = arcpy.Array()
 
@@ -64,39 +137,58 @@ def add_joining_lines(input_lines, output_lines, max_distance):
         lineArray.add(last)    
 
         # Insert the new line into the dataset
-        feat = line_rows.newRow()
+        feat = output_rows.newRow()
         feat.shape = lineArray
-        line_rows.insertRow(feat)
+        output_rows.insertRow(feat)
+
+        del orig_rows
+        del line_row
 
 
     # Clean up
-    del line_rows
-    del rows
+    del output_rows
+    del feat
+    del points_rows
+    del row
+
+    gc.collect()
 
 def intersect_line_and_raster(input_lines, input_raster):
+    """Run the Geospatial Modelling Tools function isectlinerst to get summary statistics about the raster
+    cells under a polyline"""
+    
     cmd = "C:\\GME\\SEGME.exe -c isectlinerst(in=\\\"" + input_lines + "\\\", raster=\\\"" + input_raster + "\\\", prefix=\\\"RST_\\\")"
-    print cmd
+
+    # The GME documentation suggests using system(), but the Python docs state that this is
+    # the new equivalent of system.
     output = subprocess.Popen(cmd, stdout=subprocess.PIPE).communicate()
-    #os.system(cmd)
 
 
-def add_and_check_joining_lines(input_lines, input_raster, distance):
+def add_and_check_joining_lines(input_lines, input_raster, distance, dem_threshold):
+    """Adds joining lines between the input lines, given the distance,
+    if the lines don't have too much variance in the DEM under them (in this
+    case, it will stop lines that go across interdunes"""
+
+    temp_lines = create_temp_filename("TempLines.shp")
+    print temp_lines
+    output_file = create_temp_filename("Output.shp")
+    
     # Create the joining lines
-    add_joining_lines(input_lines, "D:\TempLines.shp", distance)
+    add_joining_lines(input_lines, temp_lines, distance)
 
     # Add fields to the lines based on the raster underneath
-    intersect_line_and_raster("D:\TempLines.shp", input_raster)
+    intersect_line_and_raster(temp_lines, input_raster)
 
     # Create a new calculated field for the difference between the mean and the min
-    arcpy.AddField_management("D:\TempLines.shp", "Calc", "FLOAT")
+    arcpy.AddField_management(temp_lines, "Calc", "FLOAT")
 
-    arcpy.CalculateField_management("D:\TempLines.shp", "Calc", "[RST_LWM]- [RST_MIN]")
+    arcpy.CalculateField_management(temp_lines, "Calc", "[RST_LWM]- [RST_MIN]")
 
     # Make the joining lines a layer so we can select from it
-    arcpy.MakeFeatureLayer_management("D:\TempLines.shp", "tempLayer")
+    arcpy.MakeFeatureLayer_management(temp_lines, "tempLayer")
 
     # Construct the SQL WHERE clause to get what we want
-    where_expression = arcpy.AddFieldDelimiters("tempLayer", "Calc") + " > 20"
+    where_expression = arcpy.AddFieldDelimiters("tempLayer", "Calc") + " > " + str(dem_threshold)
     
     # Select based on the SQL WHERE clause we just constructed
     arcpy.SelectLayerByAttribute_management("tempLayer", "NEW_SELECTION", where_expression)
@@ -106,21 +198,24 @@ def add_and_check_joining_lines(input_lines, input_raster, distance):
     if arcpy.GetCount_management("tempLayer") > 0:
         arcpy.DeleteFeatures_management("tempLayer")
 
-    arcpy.Merge_management([input_lines, "D:\TempLines.shp"], "D:\AddJoinedLines_Output.shp")
+    arcpy.Merge_management([input_lines, temp_lines], output_file)
+
+    return output_file
 
 print "Starting Main Processing Script"
 
+### PARAMETERS HERE
+input_file = "D:\\CrestsOutput_MaurWhole_Params2.tif"
+input_dem = "D:\\Maur_DEM_Whole_NoGeoref.tif"
+joining_first = 1
+joining_second = 100
+
+### ArcGIS Environment Configuration
 arcpy.env.overwriteOutput = True
 arcpy.env.XYTolerance = 0.5
 
-# PARAMETERS HERE
-input_file = "D:\\CrestsOutput_Maur.tif"
-input_dem = "D:\\Maur_DEM_NoGeoref.tif"
-joining_first = 1
-joining_second = 50
-
 # Local variables:
-OrigCrestVector = "D:\\Users\\Student\\Documents\\ArcGIS\\Default.gdb\\RasterT_tif4"
+OrigCrestVector = "D:\\OrigCrestVector.shp"
 MultipartCrestVectors = "D:\\Users\\Student\\Documents\\ArcGIS\\Default.gdb\\RasterT_tif4_MultipartToSing"
 
 print "Converting Raster to Polyline"
@@ -128,50 +223,14 @@ print "Converting Raster to Polyline"
 arcpy.RasterToPolyline_conversion(input_file, OrigCrestVector, "ZERO", "2", "SIMPLIFY", "Value")
 
 print "Adding joining lines"
-add_and_check_joining_lines(OrigCrestVector, input_dem, joining_first)
+add_and_check_joining_lines(OrigCrestVector, input_dem, joining_first, 20)
 
 # TODO: Replace with Dissolve with Single Part?
 arcpy.UnsplitLine_management(OrigCrestVector, "D:\UnsplitOutput.shp")
 
 print "Adding joining lines"
-add_and_check_joining_lines("D:\UnsplitOutput.shp", input_dem, joining_second)
+add_and_check_joining_lines("D:\UnsplitOutput.shp", input_dem, joining_second, 20)
 
-arcpy.UnsplitLine_management("D:\UnsplitOutput.shp", "D:\UnsplitOutput_Final.shp")
+arcpy.UnsplitLine_management("D:\UnsplitOutput.shp", "D:\MaurWhole_NonSmoothed_Params2.shp")
 
-##print "Integrate"
-##arcpy.Integrate_management(MultipartCrestVectors, 1)
-##
-##print "Unsplit Line"
-##arcpy.UnsplitLine_management(MultipartCrestVectors, "D:\UnsplitOutput.shp")
-##
-##
-##
-##arcpy.env.XYTolerance = 1
-##print "Unsplit Line with XYTolerance = 1"
-##arcpy.UnsplitLine_management("D:\UnsplitOutput.shp", "D:\UnsplitOutput_Final.shp")
-##arcpy.env.XYTolerance = 0.5
-##
-##print "Adding joining lines"
-##add_joining_lines("D:\UnsplitOutput_Final.shp", 10)
-##
-##
-##arcpy.env.XYTolerance = 1
-##print "Unsplit Line with XYTolerance = 1"
-##arcpy.UnsplitLine_management("D:\UnsplitOutput_Final.shp", "D:\UnsplitOutput_Final_New.shp")
-##arcpy.env.XYTolerance = 0.5
-##
-##
-##print "Adding joining lines"
-##add_joining_lines("D:\UnsplitOutput_Final_New.shp", 20)
-##
-##
-##arcpy.env.XYTolerance = 2
-##print "Unsplit Line with XYTolerance = 1"
-##arcpy.UnsplitLine_management("D:\UnsplitOutput_Final_New.shp", "D:\UnsplitOutput_Final_New_Output.shp")
-##arcpy.env.XYTolerance = 0.5
-#arcpy.Snap_edit("D:\UnsplitOutput.shp", "D:\UnsplitOutput.shp END '5 Unknown'")
-
-#arcpy.UnsplitLine_management(MultipartCrestVectors, "D:\FinalUnsplitOutput.shp")
-
-#arcpy.TrimLine_edit("D:\FinalUnsplitOutput.shp", 5, "DELETE_SHORT")
 print "Done"
