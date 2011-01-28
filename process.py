@@ -53,12 +53,6 @@ def add_joining_lines(input_lines, output_lines, max_distance):
     
     points = create_temp_filename("AJL_Points.shp")
 
-    print points
-    print "------------------------------"
-
-    print os.path.dirname(output_lines)
-    print os.path.basename(output_lines)
-
     if os.path.isfile(output_lines):
         remove_shapefile(output_lines)
 
