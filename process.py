@@ -196,35 +196,170 @@ def add_and_check_joining_lines(input_lines, input_raster, distance, dem_thresho
 
     return output_file
 
+def CalculateStatistics(inputData, FieldName):
+    temp_table = create_temp_filename("Table")
+    # Execute the Summary Statistics tool using the MEAN, SUM and COUNT options
+    arcpy.Statistics_analysis(inputData, temp_table, FieldName + " MEAN;" + FieldName + " SUM;" + FieldName + " COUNT;" + FieldName + " MIN;" + FieldName + " MAX;" + FieldName + " STD;")
+    # Get a list of fields from the new in-memory table.
+    flds = arcpy.ListFields(temp_table)
+    # Retrieve the field with the mean value.
+    for fld in flds:
+        if fld.name.__contains__("MEAN_"):
+            # Open a Search Cursor using field name.
+            rows = arcpy.SearchCursor(temp_table, "", "", fld.name)
+            #Get the first row and mean value.
+            row = rows.next()
+            mean = row.getValue(fld.name)
+        elif fld.name.__contains__("SUM_"):
+            # Open a Search Cursor using field name.
+            rows = arcpy.SearchCursor(temp_table, "", "", fld.name)
+            #Get the first row and mean value.
+            row = rows.next()
+            total = row.getValue(fld.name)
+        elif fld.name.__contains__("COUNT_"):
+            # Open a Search Cursor using field name.
+            rows = arcpy.SearchCursor(temp_table, "", "", fld.name)
+            #Get the first row and mean value.
+            row = rows.next()
+            count = row.getValue(fld.name)
+        elif fld.name.__contains__("MAX_"):
+            # Open a Search Cursor using field name.
+            rows = arcpy.SearchCursor(temp_table, "", "", fld.name)
+            #Get the first row and mean value.
+            row = rows.next()
+            maximum = row.getValue(fld.name)
+        elif fld.name.__contains__("MIN_"):
+            # Open a Search Cursor using field name.
+            rows = arcpy.SearchCursor(temp_table, "", "", fld.name)
+            #Get the first row and mean value.
+            row = rows.next()
+            minimum = row.getValue(fld.name)
+        elif fld.name.__contains__("STD_"): 
+           # Open a Search Cursor using field name.
+            rows = arcpy.SearchCursor(temp_table, "", "", fld.name)
+            #Get the first row and mean value.
+            row = rows.next()
+            std = row.getValue(fld.name)
+    return [count, mean, total, maximum, minimum, std]
+
+def PolylineToPoint_Centre(InputPolylines):
+    OutputPoints = create_temp_filename("NN_Points.shp")
+
+    arcpy.CreateFeatureclass_management(os.path.dirname(OutputPoints), os.path.basename(OutputPoints), "POINT")
+
+    # Get the shape field name
+    shape_name = arcpy.Describe(InputPolylines).shapeFieldName
+
+    rows = arcpy.SearchCursor(InputPolylines)
+
+    for row in rows:
+        cur = arcpy.InsertCursor(OutputPoints)
+        new_row = cur.newRow()
+
+        # Get the shape object of the lines
+        shape = row.getValue(shape_name)
+        cent = shape.centroid
+
+        point = arcpy.Point(cent.X, cent.Y)
+        
+        new_row.shape = point
+        cur.insertRow(new_row)
+        del new_row
+    del rows
+    del row
+    return OutputPoints
+
 print "Starting Main Processing Script"
 
 ### PARAMETERS HERE
 input_file = "D:\\CrestsOutput_MaurWhole_Params2.tif"
+output_file = "D:\MaurWhole_NonSmoothed_Params2_Again.shp"
 input_dem = "D:\\Maur_DEM_Whole_NoGeoref.tif"
 joining_first = 1
 joining_second = 100
+dem_threshold = 20
+min_length = 100
 
 ### ArcGIS Environment Configuration
 arcpy.env.overwriteOutput = True
 arcpy.env.XYTolerance = 0.5
 
-# Local variables:
-OrigCrestVector = "D:\\OrigCrestVector.shp"
-MultipartCrestVectors = "D:\\Users\\Student\\Documents\\ArcGIS\\Default.gdb\\RasterT_tif4_MultipartToSing"
+### Creating names for temporary files
+OrigCrestVector = create_temp_filename("OrigCrestVector.shp")
+UnsplitOutput1 = create_temp_filename("UnsplitOutput_1_.shp")
+BeforeSubset = create_temp_filename("BeforeSubset.shp")
 
 print "Converting Raster to Polyline"
 # Process: Raster to Polyline
 arcpy.RasterToPolyline_conversion(input_file, OrigCrestVector, "ZERO", "2", "SIMPLIFY", "Value")
 
 print "Adding joining lines"
-add_and_check_joining_lines(OrigCrestVector, input_dem, joining_first, 20)
+Joined = add_and_check_joining_lines(OrigCrestVector, input_dem, joining_first, dem_threshold)
 
 # TODO: Replace with Dissolve with Single Part?
-arcpy.UnsplitLine_management(OrigCrestVector, "D:\UnsplitOutput.shp")
+arcpy.UnsplitLine_management(Joined, UnsplitOutput1)
 
 print "Adding joining lines"
-add_and_check_joining_lines("D:\UnsplitOutput.shp", input_dem, joining_second, 20)
+Joined_2 = add_and_check_joining_lines(UnsplitOutput1, input_dem, joining_second, dem_threshold)
 
-arcpy.UnsplitLine_management("D:\UnsplitOutput.shp", "D:\MaurWhole_NonSmoothed_Params2.shp")
+arcpy.UnsplitLine_management(Joined_2, output_file)
 
+# Calculating the length of each line so we can remove the small ones
+arcpy.AddField_management(output_file, "Length", "FLOAT")
+arcpy.CalculateField_management(output_file, "Length", "!shape.length!", "PYTHON")
+
+arcpy.MakeFeatureLayer_management(output_file, "BeforeSubsetLayer")
+where_clause = arcpy.AddFieldDelimiters(output_file, "Length") + " < " + str(min_length)
+arcpy.SelectLayerByAttribute_management("BeforeSubsetLayer", "NEW_SELECTION", where_clause)
+
+# If we have some features selected then delete them, as they're the
+# ones we don't want
+if arcpy.GetCount_management("BeforeSubsetLayer") > 0:
+    arcpy.DeleteFeatures_management("BeforeSubsetLayer")
+
+remove_shapefile(OrigCrestVector)
+remove_shapefile(UnsplitOutput1)
+remove_shapefile(BeforeSubset)
+remove_shapefile(Joined)
+remove_shapefile(Joined_2)
+
+print "Final vector output saved to: " + output_file
+
+print "Calculating statistics"
+
+# Get stats on the dune lengths and numbers
+stats = CalculateStatistics(output_file, "Length")
+
+print "Converting to points to calculate Nearest Neighbour"
+NNPoints = PolylineToPoint_Centre(output_file)
+# Do Nearest Neighbour calculation
+arcpy.AverageNearestNeighbor_stats
+nn_output = arcpy.AverageNearestNeighbor_stats(NNPoints, "Euclidean Distance", "false", "#")
+
+n_dunes = stats[0]
+mean_len = stats[1]
+total_len = stats[2]
+max_len = stats[3]
+min_len = stats[4]
+stdev_len = stats[5]
+
+defect_dens = n_dunes / total_len
+
+# Get out the individual parts of the Nearest Neighbour output
+r_score = nn_output.getOutput(0)
+z_score = nn_output.getOutput(1)
+p_value = nn_output.getOutput(2)
+
+# Create the CSV line ready to be appended
+csv_array = []
+output_stats = [input_file, n_dunes, mean_len, total_len, max_len, min_len, stdev_len, 0, 0, defect_dens, r_score, z_score, p_value]
+
+for item in output_stats:
+    csv_array.append(str(item))
+
+csv_string = ",".join(csv_array)
+
+print "-----"
+print csv_string
+print "-----"
 print "Done"
