@@ -50,7 +50,8 @@ END
 FUNCTION POST_PROCESS, slope_image, dem_image, binary_image, gap, d_and_t_size, dem_threshold, d_and_t_repeats, prune_length
   ; Run the collapse routine to shrink the line down to one pixel wide
   ; in an intelligent way
-  binary = RUN_COLLAPSE(binary_image, slope_image, gap)
+  ;binary = RUN_COLLAPSE(binary_image, slope_image, gap)
+  binary = binary_image
   
   print, "Finished collapsing"
   
