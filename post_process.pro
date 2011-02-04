@@ -5,7 +5,6 @@ FUNCTION GET_FITNESS_IMAGE, slope_image
   
   fitness = sh1 + sh2 + sh3
  
-  print, "Generated slope fitness image"
   return, fitness
 END
 
@@ -47,20 +46,21 @@ FUNCTION RUN_COLLAPSE, binary_image, slope_image, gap
     return, binary
 END
 
-FUNCTION POST_PROCESS, slope_image, dem_image, binary_image, gap, d_and_t_size, dem_threshold, d_and_t_repeats, prune_length
+FUNCTION POST_PROCESS, slope_image, dem_image, binary_image, gap, d_and_t_size, dem_threshold, d_and_t_repeats, prune_length, do_collapse
   ; Run the collapse routine to shrink the line down to one pixel wide
   ; in an intelligent way
-  ;binary = RUN_COLLAPSE(binary_image, slope_image, gap)
-  binary = binary_image
   
-  print, "Finished collapsing"
-  
-  tvscl, binary
+  IF do_collapse EQ 1 THEN BEGIN
+    binary = RUN_COLLAPSE(binary_image, slope_image, gap)
+    print, "-- Finished collapsing"
+  ENDIF ELSE BEGIN
+    binary = binary_image
+  ENDELSE
   
   IMAGE_TO_ENVI, binary
   
   ; Do dilate and thin
-  print, "Doing DILATE and THIN"
+  
   
   binary = DILATE_AND_THIN(binary, dem_image, d_and_t_size, dem_threshold, d_and_t_repeats)
   IMAGE_TO_ENVI, binary
@@ -70,23 +70,7 @@ FUNCTION POST_PROCESS, slope_image, dem_image, binary_image, gap, d_and_t_size, 
   IMAGE_TO_ENVI, binary
   
   binary = NEW_PRUNE(binary, prune_length)
-;  
-;  print, "First prune"
-;  tvscl, binary
-;  
-;  ;IMAGE_TO_ENVI, binary
-;  
-;  binary = DILATE_AND_THIN(binary, dem_image, 5, 2, 1)
-;  
-;  print, "Multiple DandTs"
-;  tvscl, binary
-;  
-;  ;IMAGE_TO_ENVI, binary
-;  
-;  binary = NEW_PRUNE(binary, 10)
-;  
-;  print, "Final prune"
-;  tvscl, binary
+  print, "-- Finished dilating, thinning and pruning"
   
   return, binary
 END
@@ -123,18 +107,17 @@ FUNCTION NEW_PRUNE, binary_image, n
   input = binary_image
   
   FOR i = 0, n - 1 DO BEGIN
-  print, i
-  ; Thin with structuring elements
-  thinned = MORPH_THIN(input, hit1, miss1)
-  thinned AND= MORPH_THIN(input, hit2, miss2)
-  thinned AND= MORPH_THIN(input, hit3, miss3)
-  thinned AND= MORPH_THIN(input, hit4, miss4)
-  thinned AND= MORPH_THIN(input, hit5, miss5)
-  thinned AND= MORPH_THIN(input, hit6, miss6)
-  thinned AND= MORPH_THIN(input, hit7, miss7)
-  thinned AND= MORPH_THIN(input, hit8, miss8)
-  
-  input = thinned
+    ; Thin with structuring elements
+    thinned = MORPH_THIN(input, hit1, miss1)
+    thinned AND= MORPH_THIN(input, hit2, miss2)
+    thinned AND= MORPH_THIN(input, hit3, miss3)
+    thinned AND= MORPH_THIN(input, hit4, miss4)
+    thinned AND= MORPH_THIN(input, hit5, miss5)
+    thinned AND= MORPH_THIN(input, hit6, miss6)
+    thinned AND= MORPH_THIN(input, hit7, miss7)
+    thinned AND= MORPH_THIN(input, hit8, miss8)
+    
+    input = thinned
   ENDFOR
   
   ; Get end points
@@ -155,8 +138,6 @@ FUNCTION NEW_PRUNE, binary_image, n
   FOR i = 0, n - 1 DO BEGIN
   dilated OR= DILATE(dilated, intarr(3, 3) + 1)
   ENDFOR
-  
-  print, MAX(binary_image)
   
   ;tvscl, binary_image
   

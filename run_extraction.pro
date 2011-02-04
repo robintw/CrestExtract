@@ -1,12 +1,39 @@
-PRO RUN_EXTRACTION
+FUNCTION GET_TAG_OR_DEFAULT, struct, name, default
+  tag_names = TAG_NAMES(struct)
+  
+  index = WHERE(STRCMP(tag_names, STRUPCASE(name)) EQ 1, count)
+  IF count EQ 1 THEN BEGIN
+    return, struct.(index)
+  ENDIF ELSE BEGIN
+    return, default
+  ENDELSE
+  
+END
+
+PRO RUN_EXTRACTION, config_filename
+  print, "Reading configuration file from ", STRTRIM(config_filename, 2)
+  params = pp_readpars(config_filename)
+  
+  dem_threshold = GET_TAG_OR_DEFAULT(params, "dem_threshold", 0)
+  output_threshold = GET_TAG_OR_DEFAULT(params, "output_threshold", 0)
+  gap = GET_TAG_OR_DEFAULT(params, "gap", 4)
+  d_and_t_size = GET_TAG_OR_DEFAULT(params, "d_and_t_size", 3)
+  d_and_t_repeats = GET_TAG_OR_DEFAULT(params, "d_and_t_repeats", 1)
+  prune_length = GET_TAG_OR_DEFAULT(params, "prune_length", 2)
+  do_collapse = GET_TAG_OR_DEFAULT(params, "do_collapse", 0)
+  input_filename = GET_TAG_OR_DEFAULT(params, "input_filename", "")
+  output_filename = GET_TAG_OR_DEFAULT(params, "output_filename", "D:\CrestsOutput_DEFAULT.tif")
+
+  print, "Finished reading configuration file."
+  
   ; Values below are good for our Maur test example
-  dem_threshold = 50
-  output_threshold = 40
-  gap = 2
-  d_and_t_size = 3
-  d_and_t_repeats = 1
-  prune_length = 2
-  output_filename = "D:\CrestsOutput_Maur.tif"
+;  dem_threshold = 50
+;  output_threshold = 40
+;  gap = 4 ; Was 2
+;  d_and_t_size = 5 ; was 3
+;  d_and_t_repeats = 2 ; was 1
+;  prune_length = 4 ; was 2
+;  output_filename = "D:\CrestsOutput_MaurWhole_Params2.tif"
 
   ; Values below are good for our DECAL test example
 ;  dem_threshold = 5
@@ -17,25 +44,27 @@ PRO RUN_EXTRACTION
 ;  d_and_t_repeats = 1
 ;  prune_length = 1
 ;  output_filename = "D:\CrestsOutputNew.tif"
-  
-  ; Get file using a GUI dialog
-  ENVI_SELECT, fid=fid, dims=dims, pos=pos
-  IF fid[0] EQ -1 THEN BEGIN
-    print, "No file selected - exiting"
-    return
+
+  IF STRLEN(input_filename) EQ 0 OR STRLEN(output_filename) EQ 0 THEN BEGIN
+    print, "No input or no output filename specified. Exiting."
   ENDIF
   
-  print, dem_threshold
+  ENVI_OPEN_FILE, input_filename, r_fid=fid
+  
+  ENVI_FILE_QUERY, fid, dims=dims
+  
+  pos=0
   
   ; Prepare the data (threshold, calculate slope and aspect etc)
+  print, "Preparing data."
   fids = PREPARE_DATA(fid, dims, pos, dem_threshold)
+  
   ; Get the FIDs of the prepared data
   dem_fid = fids[0]
   aspect_fid = fids[1]
   slope_fid = fids[2]
   
-  print, dem_threshold
-  
+  print, "Running crest extraction algorithm:"
   crests_image = EXTRACT_CRESTS(dem_fid, aspect_fid, slope_fid, dem_threshold)
   
   ; TESTING purposes only - put image in ENVI
@@ -48,7 +77,7 @@ PRO RUN_EXTRACTION
   
   output = crests_image GT output_threshold
   
-  print, "Thresholded output image"
+  print, "Finished thresholding"
   
   
   ; Get the slope image as an array
@@ -59,12 +88,19 @@ PRO RUN_EXTRACTION
   ; The parameters are:
   ; 2, 5, 5, 1, )
   ; slope_image, dem_image, binary_image, gap, d_and_t_size, dem_threshold, d_and_t_repeats, prune_length
-  final_output = POST_PROCESS(slope_image, dem_image, output, gap, d_and_t_size, dem_threshold, d_and_t_repeats, prune_length)
+  print, "Post processing data:"
+  final_output = POST_PROCESS(slope_image, dem_image, output, gap, d_and_t_size, dem_threshold, d_and_t_repeats, prune_length, do_collapse)
   
   print, "Finished Post-Processing"
   
   ; Export output to TIFF file (for best compatability with all GIS/RS systems)
   print, "Exporting to TIFF file at " + STRTRIM(output_filename)
+  
+  IF FILE_TEST(output_filename) EQ 1 THEN BEGIN
+    print, "!!! Output file exists - so deleting old version"
+    FILE_DELETE, output_filename
+  ENDIF
+  
   ENVI_ENTER_DATA, final_output, r_fid=final_fid
   ENVI_OUTPUT_TO_EXTERNAL_FORMAT, fid=final_fid, dims=dims, pos=0, out_name=output_filename, /TIFF
   print, "Finished"

@@ -59,10 +59,10 @@ FUNCTION EXTRACT_CRESTS, dem_fid, aspect_fid, slope_fid, dem_threshold
   t1 = SYSTIME(/seconds)
   
   FOR i = 0, N_ELEMENTS(sizes) - 1 DO BEGIN
-    print, "Checking ", sizes[i]
-    print, "Local maxima"
+    print, "Checking with a size of ", STRTRIM(STRING(sizes[i]),2)
+    print, "-- Local maxima"
     output = output + (maxima_weights[i] * CHECK_LOCAL_MAXIMA(dem_image, ns, nl, sizes[i]))
-    print, "Aspect change"
+    print, "-- Aspect change"
     output = output + (aspect_weights[i] * CHECK_ASPECT_CHANGE(aspect_image, ns, nl, sizes[i]))
   ENDFOR
   
@@ -72,7 +72,7 @@ FUNCTION EXTRACT_CRESTS, dem_fid, aspect_fid, slope_fid, dem_threshold
   indices = WHERE(dem_image LT dem_threshold, count)
   IF count GT 0 THEN output[indices] = 0
   
-  print, "Finished initial crest extraction"
+  print, "Finished crest extraction algorithm"
   print, "Time taken (in seconds): ", t2 - t1
   return, output
 END
