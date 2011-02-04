@@ -64,18 +64,18 @@ FUNCTION POST_PROCESS, slope_image, dem_image, binary_image, gap, d_and_t_size, 
   
   binary = DILATE_AND_THIN(binary, dem_image, d_and_t_size, dem_threshold, d_and_t_repeats)
   IMAGE_TO_ENVI, binary
-  binary = NEW_PRUNE(binary, prune_length)
+  binary = PRUNE(binary, prune_length)
   IMAGE_TO_ENVI, binary
   binary = DILATE_AND_THIN(binary, dem_image, d_and_t_size, dem_threshold, d_and_t_repeats)  
   IMAGE_TO_ENVI, binary
   
-  binary = NEW_PRUNE(binary, prune_length)
+  binary = PRUNE(binary, prune_length)
   print, "-- Finished dilating, thinning and pruning"
   
   return, binary
 END
 
-FUNCTION NEW_PRUNE, binary_image, n
+FUNCTION PRUNE, binary_image, n
   ;ENVI_SELECT, fid=fid, dims=dims, pos=pos
   ;binary_image = ENVI_GET_DATA(fid=fid, dims=dims, pos=pos)
   
@@ -155,14 +155,7 @@ FUNCTION NEW_PRUNE, binary_image, n
 END
 
 FUNCTION DILATE_AND_THIN, binary_image, dem_image, n, threshold, reps
-  ;ENVI_SELECT, fid=fid, dims=dims, pos=pos, title="Binary Image"
-  
- ; binary_image = ENVI_GET_DATA(fid=fid, dims=dims, pos=pos)
-  
-  ;ENVI_SELECT, fid=fid, dims=dims, pos=pos, title="DEM"
-  
-  ;dem_image = ENVI_GET_DATA(fid=fid, dims=dims, pos=pos)
-  
+
   FOR i = 0, reps - 1 DO BEGIN
   ;res = MORPH_CLOSE(image, indgen(n, n) + 1)
   binary_image = DILATE(binary_image, indgen(n,n) + 1)
@@ -175,7 +168,6 @@ FUNCTION DILATE_AND_THIN, binary_image, dem_image, n, threshold, reps
   ENDFOR
   
   return, binary_image
-  
 END
 
 FUNCTION GET_ENDPOINTS, image
@@ -204,104 +196,4 @@ FUNCTION GET_ENDPOINTS, image
   output OR= MORPH_HITORMISS(image, hit, miss8)
 
   return, output
-END
-
-PRO PRUNE, binary_image
-  ; Define constants
-  ; 3 x 3 array of 1's
-  ONES_ARRAY = intarr(3, 3) + 1
-  
-  dims = SIZE(binary_image, /DIMENSIONS)
-  
-  final_output = intarr(dims[0], dims[1])
-    
-  endpoints = GET_ENDPOINTS(binary_image)
-  regions = LABEL_REGION(binary_image, /ALL_NEIGHBORS)
-
-  indices = WHERE(endpoints GT 0, count)
-  selected_pixels = regions[indices]
-  
-  hist = HISTOGRAM(selected_pixels, locations=locs)
-
-
-  indices = WHERE(hist GT 2, count, COMPLEMENT=comp)
-  
-  ok_regions = locs[comp]
-  
-  FOR k = 0, N_ELEMENTS(ok_regions) - 1 DO BEGIN
-    region = ok_regions[k]
-    
-    copying_indices = WHERE(regions EQ region)
-    
-    final_output[copying_indices] = 1
-  END
-  
-  IF count EQ 0 THEN RETURN
-  regions_to_process = locs[indices]
-  
-  temp = intarr(dims[0], dims[1])
-  
-  
-  FOR i = 0, N_ELEMENTS(regions_to_process) - 1 DO BEGIN
-    print, "Processing region " + STRTRIM(STRING(i)) + " of " + STRTRIM(STRING(N_ELEMENTS(regions_to_process) - 1))
-    
-  
-  
-    region = regions_to_process[i]
-    
-    ; Clear the temp array
-    temp = intarr(dims[0], dims[1])
-    
-    ; Copy just this region into the temp array
-    region_points = WHERE(regions EQ region)
-    temp[region_points] = 1
-    
-    orig_temp = temp
-    
-    ;tvscl, temp
-    
-    ; Get the endpoints and their indices
-    endpoint_image = GET_ENDPOINTS(temp)
-    orig_endpoint_image = endpoint_image
-    ;tvscl, endpoint_image
-    endpoint_indices = WHERE(endpoint_image)
-    
-    IF N_ELEMENTS(endpoint_indices) EQ 2 THEN BEGIN
-      print, "Indices = 2"
-      continue
-    ENDIF
-    
-    n = 0
-    ; While there are more than two endpoints
-    WHILE N_ELEMENTS(endpoint_indices) GT 2 DO BEGIN
-      ; Blank these endpoints in the temp image
-      temp[endpoint_indices] = 0
-      
-      ; Get the endpoint indices again
-      endpoint_image = GET_ENDPOINTS(temp)
-      endpoint_indices = WHERE(endpoint_image)
-      n += 1
-    ENDWHILE
-    
-    ; Extend from the final endpoints (after they have been reduced to just two)
-    ; back along the path using conditional dilation (dilating then ANDing with
-    ; the original to ensure dilation is only along the original path
-    FOR j = 0, n - 1 DO BEGIN
-      endpoint_image = DILATE(endpoint_image, ONES_ARRAY) AND orig_temp
-      ;tvscl, endpoint_image
-      endpoint_image = endpoint_image AND orig_temp
-      ;tvscl, endpoint_image
-    ENDFOR
-    
-    ; Add the conditionally dilated pixels in to the pruned line
-    temp = temp OR endpoint_image
-    
-    ;tvscl, temp
-    
-    ; We've now got the pruned line in temp, so
-    ; OR this with the final output image to include it there
-    final_output = final_output OR temp
-  ENDFOR
-  
-  IMAGE_TO_ENVI, final_output
 END
