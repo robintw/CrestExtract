@@ -46,10 +46,7 @@ FUNCTION RUN_COLLAPSE, binary_image, slope_image, gap
     return, binary
 END
 
-FUNCTION POST_PROCESS, slope_image, dem_image, binary_image, gap, d_and_t_size, dem_threshold, d_and_t_repeats, prune_length, do_collapse
-  ; Run the collapse routine to shrink the line down to one pixel wide
-  ; in an intelligent way
-  
+FUNCTION POST_PROCESS, slope_image, dem_image, binary_image, gap, d_and_t_size, dem_threshold, d_and_t_repeats, prune_length, do_collapse  
   IF do_collapse EQ 1 THEN BEGIN
     binary = RUN_COLLAPSE(binary_image, slope_image, gap)
     print, "-- Finished collapsing"
@@ -60,8 +57,6 @@ FUNCTION POST_PROCESS, slope_image, dem_image, binary_image, gap, d_and_t_size, 
   IMAGE_TO_ENVI, binary
   
   ; Do dilate and thin
-  
-  
   binary = DILATE_AND_THIN(binary, dem_image, d_and_t_size, dem_threshold, d_and_t_repeats)
   IMAGE_TO_ENVI, binary
   binary = PRUNE(binary, prune_length)
@@ -76,11 +71,7 @@ FUNCTION POST_PROCESS, slope_image, dem_image, binary_image, gap, d_and_t_size, 
 END
 
 FUNCTION PRUNE, binary_image, n
-  ;ENVI_SELECT, fid=fid, dims=dims, pos=pos
-  ;binary_image = ENVI_GET_DATA(fid=fid, dims=dims, pos=pos)
-  
   binary_image = binary_image GT 0
-
 
   hit1 = [ [0, 0, 0], [1, 1, 0], [0, 0, 0] ]
   hit2 = [ [0, 1, 0], [0, 1, 0], [0, 0, 0] ]
@@ -101,8 +92,6 @@ FUNCTION PRUNE, binary_image, n
   miss6 = [ [1, 1, 0], [1, 0, 1], [1, 1, 1] ]
   miss7 = [ [1, 1, 1], [1, 0, 1], [1, 1, 0] ]
   miss8 = [ [1, 1, 1], [1, 0, 1], [0, 1, 1] ]
-  
-  ;output = intarr(dims[2] + 1, dims[4] + 1)
   
   input = binary_image
   
@@ -130,23 +119,14 @@ FUNCTION PRUNE, binary_image, n
   endpoints OR= MORPH_HITORMISS(thinned, hit7, miss7)
   endpoints OR= MORPH_HITORMISS(thinned, hit8, miss8)
   
-  ;tvscl, endpoints
-  
   ; Conditionally dilate
-  
   dilated = endpoints
   FOR i = 0, n - 1 DO BEGIN
-  dilated OR= DILATE(dilated, intarr(3, 3) + 1)
+    dilated OR= DILATE(dilated, intarr(3, 3) + 1)
   ENDFOR
-  
-  ;tvscl, binary_image
   
   ; Conditionalise it
   dilated = dilated AND binary_image
-  
-  ;tvscl, dilated
-  
-  ;IMAGE_TO_ENVI, dilated
   
   ; Get final result
   output = thinned OR dilated
@@ -155,7 +135,6 @@ FUNCTION PRUNE, binary_image, n
 END
 
 FUNCTION DILATE_AND_THIN, binary_image, dem_image, n, threshold, reps
-
   FOR i = 0, reps - 1 DO BEGIN
   ;res = MORPH_CLOSE(image, indgen(n, n) + 1)
   binary_image = DILATE(binary_image, indgen(n,n) + 1)
