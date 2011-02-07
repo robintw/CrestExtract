@@ -1,12 +1,3 @@
-FUNCTION REMOVE_LOW_VALUES, fid, dims, pos, threshold
-  WholeBand = ENVI_GET_DATA(fid=fid, dims=dims, pos=pos)
-  
-  indices = WHERE(WholeBand LT threshold, count)
-  IF count GT 0 THEN WholeBand[indices] = 0
-  
-  return, WholeBand
-END
-
 FUNCTION PREPARE_DATA, fid, dims, pos, threshold
   ; Remove the low values from the input image to reduce noise
   thresholded = REMOVE_LOW_VALUES(fid, dims, pos, threshold)
@@ -25,8 +16,6 @@ FUNCTION PREPARE_DATA, fid, dims, pos, threshold
     /IN_MEMORY, r_fid=LP1_fid
   envi_doit, 'conv_doit', fid=LP1_fid, dims=dims, pos=pos, kx=3, ky=3, method=3, $
     /IN_MEMORY, r_fid=LP2_fid
-    
-  
   
   return, [thresholded_fid, LP2_fid, slope_fid]
 END

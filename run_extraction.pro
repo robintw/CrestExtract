@@ -1,15 +1,3 @@
-FUNCTION GET_TAG_OR_DEFAULT, struct, name, default
-  tag_names = TAG_NAMES(struct)
-  
-  index = WHERE(STRCMP(tag_names, STRUPCASE(name)) EQ 1, count)
-  IF count EQ 1 THEN BEGIN
-    return, struct.(index)
-  ENDIF ELSE BEGIN
-    return, default
-  ENDELSE
-  
-END
-
 PRO RUN_EXTRACTION, config_filename
   print, "Reading configuration file from ", STRTRIM(config_filename, 2)
   params = pp_readpars(config_filename)
@@ -83,11 +71,7 @@ PRO RUN_EXTRACTION, config_filename
   ; Get the slope image as an array
   slope_image = ENVI_GET_DATA(fid=slope_fid, dims=dims, pos=0)
   dem_image = ENVI_GET_DATA(fid=dem_fid, dims=dims, pos=0)
-  
-  ; Post process the output
-  ; The parameters are:
-  ; 2, 5, 5, 1, )
-  ; slope_image, dem_image, binary_image, gap, d_and_t_size, dem_threshold, d_and_t_repeats, prune_length
+ 
   print, "Post processing data:"
   final_output = POST_PROCESS(slope_image, dem_image, output, gap, d_and_t_size, dem_threshold, d_and_t_repeats, prune_length, do_collapse)
   
