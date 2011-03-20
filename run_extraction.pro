@@ -38,10 +38,14 @@ PRO RUN_EXTRACTION, config_filename
   ENDIF
   
   ENVI_OPEN_FILE, input_filename, r_fid=fid
+
+  IF fid EQ -1 THEN print, "File not found. Exiting."
   
   ENVI_FILE_QUERY, fid, dims=dims
   
   pos=0
+
+  print, "Before prepare data"
   
   ; Prepare the data (threshold, calculate slope and aspect etc)
   print, "Preparing data."
