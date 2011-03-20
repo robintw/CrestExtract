@@ -8,6 +8,7 @@
 # Import arcpy module
 import arcpy
 import os
+import glob
 import subprocess
 import tempfile
 import gc
@@ -141,7 +142,6 @@ def add_joining_lines(input_lines, output_lines, max_distance):
 
     # Clean up
     del output_rows
-    del feat
     del points_rows
     del row
 
@@ -269,16 +269,60 @@ def PolylineToPoint_Centre(InputPolylines):
     del row
     return OutputPoints
 
+def CalculateAllStatistics(input_file):
+	arcpy.AddField_management(input_file, "LengthStat", "FLOAT")
+	arcpy.CalculateField_management(input_file, "LengthStat", "!shape.length!", "PYTHON")
+	
+	# Get stats on the dune lengths and numbers
+	stats = CalculateStatistics(input_file, "LengthStat")
+	
+	print "Converting to points to calculate Nearest Neighbour"
+	NNPoints = PolylineToPoint_Centre(input_file)
+	# Do Nearest Neighbour calculation
+	arcpy.AverageNearestNeighbor_stats
+	nn_output = arcpy.AverageNearestNeighbor_stats(NNPoints, "Euclidean Distance", "false", "#")
+	
+	n_dunes = stats[0]
+	mean_len = stats[1]
+	total_len = stats[2]
+	max_len = stats[3]
+	min_len = stats[4]
+	stdev_len = stats[5]
+	
+	defect_dens = n_dunes / total_len
+	
+	# Get out the individual parts of the Nearest Neighbour output
+	r_score = nn_output.getOutput(0)
+	z_score = nn_output.getOutput(1)
+	p_value = nn_output.getOutput(2)
+	
+	# Create the CSV line ready to be appended
+	csv_array = []
+	output_stats = [input_file, n_dunes, mean_len, total_len, max_len, min_len, stdev_len, 0, 0, defect_dens, r_score, z_score, p_value]
+	
+	for item in output_stats:
+		csv_array.append(str(item))
+	
+	csv_string = ",".join(csv_array)
+	
+	return csv_string
+
+def StatsForFolder(folder):
+    for f in glob.glob(folder):
+        root, ext = os.path.splitext(f)
+        if ext == ".shp":
+            print CalculateAllStatistics(f)
+
 print "Starting Main Processing Script"
 
 ### PARAMETERS HERE
-input_file = "D:\\CrestsOutput_MaurWhole_Params2.tif"
-output_file = "D:\MaurWhole_NonSmoothed_Params2_Again.shp"
-input_dem = "D:\\Maur_DEM_Whole_NoGeoref.tif"
-joining_first = 1
-joining_second = 100
-dem_threshold = 20
-min_length = 100
+input_file = "D:\\Data\\DunesGIS\\_NewTests\\Maur\\Maur7.tif"
+output_file = "D:\\Data\\DunesGIS\\_NewTests\\Maur\\Maur7.shp"
+input_dem = "D:\\Data\\DunesGIS\\_NewTests\\Maur\\Maur_DEM_Whole_NoGeoref_Detrended_LP7.tif"
+joining_first = 10
+joining_second = 20
+dem_threshold = 50
+min_length = 5
 
 ### ArcGIS Environment Configuration
 arcpy.env.overwriteOutput = True
@@ -297,12 +341,14 @@ print "Adding joining lines"
 Joined = add_and_check_joining_lines(OrigCrestVector, input_dem, joining_first, dem_threshold)
 
 # TODO: Replace with Dissolve with Single Part?
-arcpy.UnsplitLine_management(Joined, UnsplitOutput1)
+#arcpy.UnsplitLine_management(Joined, UnsplitOutput1)
+arcpy.Dissolve_management(Joined, UnsplitOutput1, None, multi_part="SINGLE_PART", unsplit_lines="DISSOLVE_LINES")
 
 print "Adding joining lines"
 Joined_2 = add_and_check_joining_lines(UnsplitOutput1, input_dem, joining_second, dem_threshold)
 
-arcpy.UnsplitLine_management(Joined_2, output_file)
+#arcpy.UnsplitLine_management(Joined_2, output_file)
+arcpy.Dissolve_management(Joined_2, output_file, None, multi_part="SINGLE_PART", unsplit_lines="DISSOLVE_LINES")
 
 # Calculating the length of each line so we can remove the small ones
 arcpy.AddField_management(output_file, "Length", "FLOAT")
@@ -327,39 +373,4 @@ print "Final vector output saved to: " + output_file
 
 print "Calculating statistics"
 
-# Get stats on the dune lengths and numbers
-stats = CalculateStatistics(output_file, "Length")
-
-print "Converting to points to calculate Nearest Neighbour"
-NNPoints = PolylineToPoint_Centre(output_file)
-# Do Nearest Neighbour calculation
-arcpy.AverageNearestNeighbor_stats
-nn_output = arcpy.AverageNearestNeighbor_stats(NNPoints, "Euclidean Distance", "false", "#")
-
-n_dunes = stats[0]
-mean_len = stats[1]
-total_len = stats[2]
-max_len = stats[3]
-min_len = stats[4]
-stdev_len = stats[5]
-
-defect_dens = n_dunes / total_len
-
-# Get out the individual parts of the Nearest Neighbour output
-r_score = nn_output.getOutput(0)
-z_score = nn_output.getOutput(1)
-p_value = nn_output.getOutput(2)
-
-# Create the CSV line ready to be appended
-csv_array = []
-output_stats = [input_file, n_dunes, mean_len, total_len, max_len, min_len, stdev_len, 0, 0, defect_dens, r_score, z_score, p_value]
-
-for item in output_stats:
-    csv_array.append(str(item))
-
-csv_string = ",".join(csv_array)
-
-print "-----"
-print csv_string
-print "-----"
-print "Done"
+print CalculateAllStatistics(output_file)

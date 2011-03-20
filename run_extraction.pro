@@ -1,8 +1,8 @@
 PRO RUN_EXTRACTION, config_filename
   print, "Reading configuration file from ", STRTRIM(config_filename, 2)
   params = pp_readpars(config_filename)
-  
   dem_threshold = GET_TAG_OR_DEFAULT(params, "dem_threshold", 0)
+  
   output_threshold = GET_TAG_OR_DEFAULT(params, "output_threshold", 0)
   gap = GET_TAG_OR_DEFAULT(params, "gap", 4)
   d_and_t_size = GET_TAG_OR_DEFAULT(params, "d_and_t_size", 3)
